@@ -1,0 +1,47 @@
+B = 010010010
+C = 001001001
+A = 100100100
+
+T = u+v 
+
+((T & C) << 1) & T |
+((T & B) << 1) & T |
+((T & C) << 2) & T
+
+Pattern : P, Tetrahedron: T
+101
+110
+011
+
+Case 1: Perfect match with pattern
+P ^ T = 000
+ex. 101 ^ 101 = 000
+
+100,000,
+
+Case 2: Not a perfect match
+P ^ T = X
+
+((X & 011) + 011) & 100 - First bit is set when either second or third bit is set in X
+(X & 100) - First bit set only when set in X
+Y = (X | ((X & 011) + 011)) & 100 - First bit set when any bit in X is 1
+Z = Y ^ (100) - Z is 100 if X is 000, otherwise Z is 000
+Test for Z1 Z2 Z3....Z3N, if all zeros then compatible, otherwise incompatible
+
+all pairs S+, S- O(v^2 * v), O(v^2 * 2^n)
+
+Combinatorial test 3n tetrahedron, v vertices 
+ 001, 010, 011 
+query 001 -> 011, 101, 111 - Possibly exponential in n
+Input X is a subset of one of the items in set - TrieSet
+  0
+ 1  0 
+0 1  1
+TrieSet
+-Adaptive Radix Trie
+
+-Worst case -> Search through whole trie, (sort of linear time multiplied by traversal time)
+-Suppose search is 1011000
+-Check all children of 1011000 and all combinations in superset (check 2nd index = 1, 5th index = 1 etc.)
+-Try using 16 bits at a time
+-Try linear time approach

@@ -1,0 +1,44 @@
+For each iteration, posets and negsets can only survive for one iteration. Using a linear
+scan over all vertices, it is possible to redistribute these to different machines. The 
+analysis will therefore be for each single iteration of the algorithm.
+
+Assume C is large but p is way larger. Otherwise just solve locally.
+
+t - tetrahedra
+v - vertices
+p - posets (p > n WLOG)
+n - negsets
+B - network transfer block size
+C - number of computers available
+o - number of final vertices
+
+Base Case:
+R = O(npv) or O(npt^3) runtime
+
+Initially, make assumption memory is not a problem. 
+Analysis 1:
+O(vt lg C / B) network transfers to initialise
+O(v^2 / C) execution time + O(v^2 / BC) network transfers building graph
+O(R / C) execution time -> may be lower from graph
+-Rebalance and redistribute memory
+
+Start -> Formulate into a decision problem
+See if it has been done (or simplifications), look into graph np-completeness
+
+
+(u, v) -> (u, z) , (v, z) , (u,v) must be in compatibility graph
+Compatibility graph: degree of u, and degree of v -> choose smaller degree
+-Np-completeness (graph problems)
+
+Assume hyperplanes fit in memory.
+Build a graph over distributed network. 
+Ideas for ways to distribute rays in memory:
+-Heat map style?
+-Vertex degrees?
+-Database literature?
+Analysis 2:
+
+Different replication levels of items
+Analysis 3:
+
+How to test?
