@@ -41,14 +41,14 @@ class REGINA_API DoubleDescriptionAlt {
 
         DoubleDescriptionAlt();
 
-        static bool isCompatible(RayAlt* ray1, RayAlt* ray2);
+        static bool isCompatible(RayAlt& ray1, RayAlt& ray2);
 
-        static bool isAdjacent(vector<RayAlt*>& src, RayAlt* ray1, RayAlt* ray2);
+        static bool isAdjacent(vector<RayAlt>& src, int ind1, int ind2);
 
-        static RayAlt* constructRay(RayAlt* ray1, RayAlt* ray2, int hyperPlane, const MatrixInt& subspace);
+        static RayAlt constructRay(RayAlt& ray1, RayAlt& ray2, int hyperPlane, const MatrixInt& subspace);
 
-        static bool intersectHyperplaneAlt(int currentHyperplane, vector<RayAlt*>& src, 
-            vector<RayAlt*>& dest, const MatrixInt& subspace);
+        static bool intersectHyperplaneAlt(int currentHyperplane, vector<RayAlt>& src, 
+            vector<RayAlt>& dest, const MatrixInt& subspace);
 };
 
 }
