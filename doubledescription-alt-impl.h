@@ -4,13 +4,16 @@
 //Bit size is 32 rounded down to multiple of 3
 //#define LOG_FILENAME                "log.txt"
 //#define MAKEGRAPH                   1
-#define BIT_SIZE                    30
-#define FIRST_BIT                   0x9249249  //00|001001....
-#define SECOND_BIT                  0x12492492 //00|010010....
-#define THIRD_BIT                   0x24924929 //00|100100....
+#define DISPLAYANS
+#define BIT_SIZE                    63
+#define FIRST_BIT                   0x1249249249249249  //0|001001....
+#define SECOND_BIT                  0x2492492492492492 //0|010010....
+#define THIRD_BIT                   0x4924924924924924 //0|100100....
 
-//#define TIMING                      1
-//#define DEBUG                       1
+#define setbits                     uint64_t
+
+#define TIMING                      1
+#define DEBUG                       1
 
 
 #include <algorithm>
@@ -30,7 +33,7 @@ using namespace std;
 
 namespace regina {
 
-void printOnes(vector<uint32_t> arr) {
+void printOnes(vector<setbits> arr) {
     for(int i = 0; i < arr.size(); i++) {
         bitset<32> val(~arr[i]);
         cout << val;
@@ -100,7 +103,7 @@ LargeInteger gcd(LargeInteger a, LargeInteger b) {
 DoubleDescriptionAlt::RayAlt::RayAlt (int unitIndex, const MatrixInt& subspace, vector<unsigned long>& ordering) {
     unsigned long eqns = subspace.rows();
     unsigned long dim = subspace.columns();
-    zeroSet = vector<uint32_t>((dim + BIT_SIZE - 1) / BIT_SIZE, UINT32_MAX);
+    zeroSet = vector<setbits>((dim + BIT_SIZE - 1) / BIT_SIZE, UINT64_MAX);
     innerProductVector = vector<Rational>(eqns, 0);
     zeroSet[unitIndex / BIT_SIZE] ^= (1 << (unitIndex % BIT_SIZE));
     for(int i = 0; i < eqns; i++) {
@@ -110,7 +113,7 @@ DoubleDescriptionAlt::RayAlt::RayAlt (int unitIndex, const MatrixInt& subspace, 
 }
 
 //Constructor with given parameters
-DoubleDescriptionAlt::RayAlt::RayAlt (vector<uint32_t>& zeroSet, vector<Rational>& innerProductVector) {
+DoubleDescriptionAlt::RayAlt::RayAlt (vector<setbits>& zeroSet, vector<Rational>& innerProductVector) {
     this->zeroSet = zeroSet;
     this->innerProductVector = innerProductVector;
     timeAlive = 0;
@@ -134,9 +137,9 @@ void DoubleDescriptionAlt::RayAlt::recover(RayClass* dest, const MatrixInt& subs
     unsigned long rem = subspace.columns() % BIT_SIZE; //Number of elements in final bit set
     unsigned long zeroSetSize = 0;
     //List of indices to iterate over
-    vector<uint32_t> indices;
+    vector<setbits> indices;
     //Set of indices to check memebership
-    unordered_set<uint32_t> indexSet;
+    unordered_set<setbits> indexSet;
     unsigned long index = 0;
     for (int i = 0; i < zeroSet.size() - 1; i++) {
         for (int j = 0; j < BIT_SIZE; j++) {
@@ -244,26 +247,26 @@ void DoubleDescriptionAlt::RayAlt::recover(RayClass* dest, const MatrixInt& subs
 }
 
 //Uses the selected hyperplane to construct the inner product vector
-DoubleDescriptionAlt::RayAlt DoubleDescriptionAlt::constructRay(RayAlt& ray1, RayAlt& ray2, int hyperPlane, 
+DoubleDescriptionAlt::RayAlt* DoubleDescriptionAlt::constructRay(RayAlt* ray1, RayAlt* ray2, int hyperPlane, 
     const MatrixInt& subspace) {
-    vector<uint32_t> zeroSet;    
+    vector<setbits> zeroSet;    
     vector<Rational> innerProductVector;
     unsigned long eqns = subspace.rows();
     //Starting indices of each ray
-    unsigned long rayIndex1 = subspace.rows() - ray1.innerProductVector.size();
-    unsigned long rayIndex2 = subspace.rows() - ray2.innerProductVector.size();
+    unsigned long rayIndex1 = subspace.rows() - ray1->innerProductVector.size();
+    unsigned long rayIndex2 = subspace.rows() - ray2->innerProductVector.size();
     for(int i = hyperPlane + 1; i < eqns; i++) {
         //ray1 = w, ray2 = u, i - rayIndex = j(in formula), hyperplane - rayIndex = i(in formular)
-        Rational val = (ray1.innerProductVector[i - rayIndex1] * ray2.innerProductVector[hyperPlane - rayIndex2]
-            - ray2.innerProductVector[i - rayIndex2] * ray1.innerProductVector[hyperPlane - rayIndex1])
-            / (ray2.innerProductVector[hyperPlane - rayIndex2] - ray1.innerProductVector[hyperPlane - rayIndex1]);
+        Rational val = (ray1->innerProductVector[i - rayIndex1] * ray2->innerProductVector[hyperPlane - rayIndex2]
+            - ray2->innerProductVector[i - rayIndex2] * ray1->innerProductVector[hyperPlane - rayIndex1])
+            / (ray2->innerProductVector[hyperPlane - rayIndex2] - ray1->innerProductVector[hyperPlane - rayIndex1]);
         innerProductVector.push_back(val);
     }
     //Compute the zero set of the new ray. Assumes intersecting rays have same size zero sets
-    for(int i = 0; i < ray1.zeroSet.size(); i++) {
-        zeroSet.push_back(ray1.zeroSet[i] & ray2.zeroSet[i]);
+    for(int i = 0; i < ray1->zeroSet.size(); i++) {
+        zeroSet.push_back(ray1->zeroSet[i] & ray2->zeroSet[i]);
     }
-    return RayAlt(zeroSet, innerProductVector);
+    return new RayAlt(zeroSet, innerProductVector);
 }
 
 template <typename RayClass>
@@ -293,9 +296,9 @@ void DoubleDescriptionAlt::enumerateExtremalRaysAlt(const MatrixInt& subspace,
 #ifdef DEBUG
     cout << "Initialising Vertex Set" << endl;
 #endif    
-    vector<RayAlt> vertexSets[2];
+    vector<RayAlt*> vertexSets[2];
     for(int i = 0; i < dim; i++) {
-        vertexSets[0].push_back(RayAlt(i, subspace, ordering));
+        vertexSets[0].push_back(new RayAlt(i, subspace, ordering));
     }
 #ifdef TIMING
     auto initialisation = chrono::high_resolution_clock::now();
@@ -319,9 +322,17 @@ void DoubleDescriptionAlt::enumerateExtremalRaysAlt(const MatrixInt& subspace,
     for(int i = 0; i < eqns; i++) {
 #ifdef DEBUG
     cout << "Iteration:" << i << endl;
-#endif          
+#endif
+    #ifdef TIMING
+        auto itstart = chrono::high_resolution_clock::now();
+    #endif          
         intersectHyperplaneAlt(i, vertexSets[currentSet], vertexSets[1 - currentSet], subspace);
         currentSet = 1 - currentSet;
+    #ifdef TIMING
+        auto itend = chrono::high_resolution_clock::now();
+        duration = chrono::duration_cast<chrono::microseconds>(itend - itstart);
+        cout << "Iteration " << i << " duration: " << duration.count() << endl;        
+    #endif    
     }
 #ifdef TIMING
     auto intersectingHyperplanes = chrono::high_resolution_clock::now();
@@ -335,7 +346,8 @@ void DoubleDescriptionAlt::enumerateExtremalRaysAlt(const MatrixInt& subspace,
     //Output results
     for(auto ray : vertexSets[currentSet]) {
         RayClass* result;
-        ray.recover(result, subspace);
+        ray->recover(result, subspace);
+        delete ray;
     }
 #ifdef TIMING
     auto recovery = chrono::high_resolution_clock::now();
@@ -344,18 +356,19 @@ void DoubleDescriptionAlt::enumerateExtremalRaysAlt(const MatrixInt& subspace,
 #endif
 }
 
-bool DoubleDescriptionAlt::isAdjacent(vector<RayAlt>& src, int ind1, int ind2) {
-    vector<uint32_t> combinedZeroSet(src[ind1].zeroSet.size());
-    for (int i = 0; i < combinedZeroSet.size(); i++) {
-        combinedZeroSet[i] = src[ind1].zeroSet[i] & src[ind2].zeroSet[i];
+bool DoubleDescriptionAlt::isAdjacent(vector<RayAlt*>& src, RayAlt* ray1, RayAlt* ray2) {
+    vector<setbits> pattern(ray1->zeroSet.size());
+    for (int i = 0; i < ray1->zeroSet.size(); i++) {
+        pattern[i] = ray1->zeroSet[i] & ray2->zeroSet[i];
     }
-    for (int i = 0; i < src.size(); i++) {
-        if(i == ind1 || i == ind2) {
+
+    for (RayAlt* ray : src) {
+        if(ray == ray1 || ray == ray2) {
             continue;
         }
         bool isSubset = true;
-        for (int j = 0; j < combinedZeroSet.size(); j++) {
-            if ((combinedZeroSet[j] & src[i].zeroSet[j]) != combinedZeroSet[j]) {
+        for (int i = 0; i < ray1->zeroSet.size(); i++) {
+            if ((pattern[i] & ray->zeroSet[i]) != pattern[i]) {
                 isSubset = false;
                 break;
             }
@@ -368,11 +381,11 @@ bool DoubleDescriptionAlt::isAdjacent(vector<RayAlt>& src, int ind1, int ind2) {
     return true;
 }
 
-bool DoubleDescriptionAlt::isCompatible(RayAlt& ray1, RayAlt& ray2) {
+bool DoubleDescriptionAlt::isCompatible(RayAlt* ray1, RayAlt* ray2) {
     //If less bits are used, zeroSet is 11111..., negation is all zeros
-    for (int i = 0; i < ray1.zeroSet.size(); i++) {
+    for (int i = 0; i < ray1->zeroSet.size(); i++) {
         //Pattern is the one set of the combined
-        uint32_t pattern = ~(ray1.zeroSet[i] & ray2.zeroSet[i]);
+        setbits pattern = ~(ray1->zeroSet[i] & ray2->zeroSet[i]);
         //011, 110 then 101 pattern check. Check is done on the set of ones
         if ((((pattern & FIRST_BIT) << 1) & pattern) ||
             (((pattern & SECOND_BIT) << 1) & pattern) ||
@@ -384,10 +397,10 @@ bool DoubleDescriptionAlt::isCompatible(RayAlt& ray1, RayAlt& ray2) {
 }
 
 bool DoubleDescriptionAlt::intersectHyperplaneAlt(
-    int currentHyperplane, vector<RayAlt>& src, 
-    vector<RayAlt>& dest, const MatrixInt& subspace) {
-    vector<int> poset;
-    vector<int> negset;
+    int currentHyperplane, vector<RayAlt*>& src, 
+    vector<RayAlt*>& dest, const MatrixInt& subspace) {
+    vector<RayAlt*> poset;
+    vector<RayAlt*> negset;
 
 #ifdef MAKEGRAPH
     unordered_map<int, vector<int>> compatibilityGraph;
@@ -425,31 +438,35 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
     }
     myFile.close();
 #endif
-    for(int i = 0; i < src.size(); i++) {
-        if(src[i].sign() == 1) {
-            poset.push_back(i);
-        } else if(src[i].sign() == -1) {
-            negset.push_back(i);
+
+    for (auto ray : src) {
+        if(ray->sign() == 1) {
+            poset.push_back(ray);
+        } else if(ray->sign() == -1) {
+            negset.push_back(ray);
         } else {
-            src[i].timeAlive++;
-            dest.push_back(src[i]);
-        }        
-    }
+            ray->timeAlive++;
+            dest.push_back(ray);
+        }
+    } 
 
 #ifdef DEBUG
     cout << "Filtering - Poset:" << poset.size() << " Negset:" << negset.size() << " Dest:" << dest.size() << endl;
 #endif 
     //Filtering and adjacency steps
-    for(auto ind1 : poset) {
-        for(auto ind2 : negset) {
-            auto ray1 = src[ind1];
-            auto ray2 = src[ind2];
-            if(isCompatible(ray1, ray2) && isAdjacent(src, ind1, ind2)) {
+    for(auto ray1 : poset) {
+        for(auto ray2 : negset) {
+            if(isCompatible(ray1, ray2) && isAdjacent(src, ray1, ray2)) {
                 dest.push_back(constructRay(ray1, ray2, currentHyperplane, subspace));
-            }            
+            }
         }
+    }   
+    for (auto ray : poset) {
+        delete ray;
     }
-
+    for (auto ray : negset) {
+        delete ray;
+    }
     src.clear();
     return true;
 }
