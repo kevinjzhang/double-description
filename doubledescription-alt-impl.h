@@ -6,14 +6,14 @@
 //#define MAKEGRAPH                   1
 #define DISPLAYANS
 #define BIT_SIZE                    63
-#define FIRST_BIT                   0x1249249249249249  //0|001001....
+#define FIRST_BIT                   0x1249249249249249 //0|001001....
 #define SECOND_BIT                  0x2492492492492492 //0|010010....
 #define THIRD_BIT                   0x4924924924924924 //0|100100....
 
 #define setbits                     uint64_t
 
-#define TIMING                      1
-#define DEBUG                       1
+// #define TIMING                      1
+// #define DEBUG                       1
 
 
 #include <algorithm>
@@ -33,14 +33,6 @@ using namespace std;
 
 namespace regina {
 
-void printOnes(vector<setbits> arr) {
-    for(int i = 0; i < arr.size(); i++) {
-        bitset<32> val(~arr[i]);
-        cout << val;
-    }
-    cout << endl;
-}
-
 void printVec(vector<Rational> innerProductVector) {
     for(auto val : innerProductVector) {
         cout << val << " ";
@@ -48,6 +40,7 @@ void printVec(vector<Rational> innerProductVector) {
     cout << endl;    
 }
 
+#ifdef MAKEGRAPH
 //Static graph in optimised version
 //Visited must have space preallocated
 void getConnectedComponent(int node, unordered_map<int, vector<int>>& graph, 
@@ -60,6 +53,7 @@ void getConnectedComponent(int node, unordered_map<int, vector<int>>& graph,
         }
     }
 }
+#endif
 
 struct LexicographicalOrder {      
     const MatrixInt* subspace;
@@ -103,9 +97,9 @@ LargeInteger gcd(LargeInteger a, LargeInteger b) {
 DoubleDescriptionAlt::RayAlt::RayAlt (int unitIndex, const MatrixInt& subspace, vector<unsigned long>& ordering) {
     unsigned long eqns = subspace.rows();
     unsigned long dim = subspace.columns();
-    zeroSet = vector<setbits>((dim + BIT_SIZE - 1) / BIT_SIZE, UINT64_MAX);
+    zeroSet = UINT64_MAX;
     innerProductVector = vector<Rational>(eqns, 0);
-    zeroSet[unitIndex / BIT_SIZE] ^= (1 << (unitIndex % BIT_SIZE));
+    zeroSet ^= (1 << unitIndex);
     for(int i = 0; i < eqns; i++) {
         innerProductVector[i] = subspace.entry(ordering[i], unitIndex);
     }
@@ -113,7 +107,7 @@ DoubleDescriptionAlt::RayAlt::RayAlt (int unitIndex, const MatrixInt& subspace, 
 }
 
 //Constructor with given parameters
-DoubleDescriptionAlt::RayAlt::RayAlt (vector<setbits>& zeroSet, vector<Rational>& innerProductVector) {
+DoubleDescriptionAlt::RayAlt::RayAlt (setbits& zeroSet, vector<Rational>& innerProductVector) {
     this->zeroSet = zeroSet;
     this->innerProductVector = innerProductVector;
     timeAlive = 0;
@@ -129,69 +123,106 @@ int DoubleDescriptionAlt::RayAlt::sign() {
     }
 }
 
-template <typename RayClass>
-void DoubleDescriptionAlt::RayAlt::recover(RayClass* dest, const MatrixInt& subspace) {
-    //Additional constraints -> zeroset + bounding hyperplane
+vector<Ray> DoubleDescriptionAlt::reduce(const MatrixInt& subspace) {
     unsigned long rows = subspace.rows();
-    //Count the size of the zero set
-    unsigned long rem = subspace.columns() % BIT_SIZE; //Number of elements in final bit set
-    unsigned long zeroSetSize = 0;
-    //List of indices to iterate over
-    vector<setbits> indices;
-    //Set of indices to check memebership
-    unordered_set<setbits> indexSet;
-    unsigned long index = 0;
-    for (int i = 0; i < zeroSet.size() - 1; i++) {
-        for (int j = 0; j < BIT_SIZE; j++) {
-            if ((1 << j) & ~zeroSet[i]) { //Non-zero index
-                indices.push_back(index);
-                indexSet.insert(index);
-            } else {
-                zeroSetSize++;
-            }
-            index++;
-        }
-    }
-
-    //Final value in set
-    for (int j = 0; j < rem; j++) {
-        if ((1 << j) & ~zeroSet.back()) { 
-            indices.push_back(index);
-            indexSet.insert(index);
-        } else {
-            zeroSetSize++;
-        }
-        index++;
-    } 
-    unsigned long cols = subspace.columns() - zeroSetSize;
-
-    //Create the set of constraints to to solve for
-    //Only rows that are non-zero are picked
+    unsigned long cols = subspace.columns();
     vector<Ray> constraints;
     for (int i = 0; i < rows; i++) {
-        bool useful = false;
         Ray row(cols);
-        for(int j = 0; j < indices.size(); j++) {
-            row.setElement(j, (LargeInteger)subspace.entry(i, indices[j]));
-            if(row[j] != 0) {
-                useful = true;
-            }
+        for(int j = 0; j < cols; j++) {
+            row.setElement(j, (LargeInteger)subspace.entry(i,j));
         }
-        if (useful) {
-            constraints.push_back(row);
-        }
+        constraints.push_back(row);
     }
-    rows = constraints.size();
-    //Linear algebra -> Solve equations to rows == (col - 1)
-    list<int> rowOrder;
+    //Reduction to diagonal
+    vector<int> rowOrder;
     unordered_set<int> rowSet;
-    for (int i = 0; i < cols - 1; i++) {
+    for (int i = 0; i < cols; i++) {
         int pivot = -1;
         for (int j = 0; j < rows; j++) {
             if (!rowSet.count(j) && constraints[j][i] != 0) {
                 if (pivot == -1) {
                     pivot = j;
-                    rowOrder.push_front(j);
+                    rowOrder.push_back(j);
+                    rowSet.insert(j);
+                } else {
+                    Ray tempRay = Ray(constraints[pivot]);
+                    tempRay *= constraints[j][i];
+                    constraints[j] *= constraints[pivot][i];
+                    constraints[j] -= tempRay;
+                }
+            }
+        }              
+    } 
+    vector<Ray> orderedConstraints;
+    for(auto index : rowOrder) {
+        orderedConstraints.push_back(constraints[index]);
+    }
+    return orderedConstraints;   
+}
+
+bool DoubleDescriptionAlt::isAdjacentAlgebraic(vector<Ray>& constraints, RayAlt* ray1, RayAlt* ray2) {
+    unsigned long rows = constraints.size();
+    unsigned long cols = constraints[0].size();
+    setbits zeroSet = ray1->zeroSet & ray2->zeroSet;
+    vector<uint32_t> indices;
+    unordered_set<uint32_t> indexSet;
+    for (int j = 0; j < cols; j++) {
+        if ((1 << j) & ~zeroSet) { 
+            indices.push_back(j);
+            indexSet.insert(j);
+        } 
+    }
+
+    vector<Ray> subspace;
+    for (int i = 0; i < rows; i++) {
+        Ray row(indices.size());
+        for(int j = 0; j < indices.size(); j++) {
+            row.setElement(j, constraints[i][indices[j]]);
+        }
+        subspace.push_back(row);
+    }    
+    return true;
+}
+
+template <typename RayClass>
+void DoubleDescriptionAlt::RayAlt::recover(RayClass* dest, const MatrixInt& subspace) {
+    //Additional constraints -> zeroset + bounding hyperplane
+    unsigned long rows = subspace.rows();
+    //Count the size of the zero set
+    unsigned long rem = subspace.columns(); //Number of elements in final bit set
+    unsigned long zeroSetSize = 0;
+    //List of indices to iterate over
+    vector<uint32_t> indices;
+    //Set of indices to check memebership
+    unordered_set<uint32_t> indexSet;
+    for (int j = 0; j < rem; j++) {
+        if ((1 << j) & ~zeroSet) { 
+            indices.push_back(j);
+            indexSet.insert(j);
+        } 
+    }
+    //Create the set of constraints to to solve for
+    vector<Ray> constraints;
+    for (int i = 0; i < rows; i++) {
+        Ray row(indices.size());
+        for(int j = 0; j < indices.size(); j++) {
+            row.setElement(j, (LargeInteger)subspace.entry(i, indices[j]));
+
+        }
+        constraints.push_back(row);
+    }
+    rows = constraints.size();
+    //Linear algebra -> Solve equations to rows == (col - 1)
+    vector<int> rowOrder;
+    unordered_set<int> rowSet;
+    for (int i = 0; i < indices.size() - 1; i++) {
+        int pivot = -1;
+        for (int j = 0; j < rows; j++) {
+            if (!rowSet.count(j) && constraints[j][i] != 0) {
+                if (pivot == -1) {
+                    pivot = j;
+                    rowOrder.push_back(j);
                     rowSet.insert(j);
                 } else {
                     Ray tempRay = Ray(constraints[pivot]);
@@ -205,17 +236,17 @@ void DoubleDescriptionAlt::RayAlt::recover(RayClass* dest, const MatrixInt& subs
     
     unordered_map<int, Rational> solutions;
     //Set last col to 1
-    solutions[cols - 1] = 1;
+    solutions[indices.size() - 1] = 1;
     //Iterate over to find all solutions
     unsigned long i = 2;
-    for(auto it = rowOrder.begin(); it != rowOrder.end(); it++) {
+    for(int k = rowOrder.size() - 1; k >= 0; k--) {
         Rational res = 0;
         for(int j = 1; j < i; j++) {
             //Multiply
-            res = res + solutions[cols - j] * constraints[*it][cols - j];
+            res = res + solutions[indices.size() - j] * constraints[rowOrder[k]][indices.size() - j];
         }
         //Divide
-        solutions[cols - i] = res / -constraints[*it][cols - i];
+        solutions[indices.size() - i] = res / -constraints[rowOrder[k]][indices.size() - i];
         i++;
     }
 
@@ -249,7 +280,7 @@ void DoubleDescriptionAlt::RayAlt::recover(RayClass* dest, const MatrixInt& subs
 //Uses the selected hyperplane to construct the inner product vector
 DoubleDescriptionAlt::RayAlt* DoubleDescriptionAlt::constructRay(RayAlt* ray1, RayAlt* ray2, int hyperPlane, 
     const MatrixInt& subspace) {
-    vector<setbits> zeroSet;    
+    setbits zeroSet = ray1->zeroSet & ray2->zeroSet;    
     vector<Rational> innerProductVector;
     unsigned long eqns = subspace.rows();
     //Starting indices of each ray
@@ -261,10 +292,6 @@ DoubleDescriptionAlt::RayAlt* DoubleDescriptionAlt::constructRay(RayAlt* ray1, R
             - ray2->innerProductVector[i - rayIndex2] * ray1->innerProductVector[hyperPlane - rayIndex1])
             / (ray2->innerProductVector[hyperPlane - rayIndex2] - ray1->innerProductVector[hyperPlane - rayIndex1]);
         innerProductVector.push_back(val);
-    }
-    //Compute the zero set of the new ray. Assumes intersecting rays have same size zero sets
-    for(int i = 0; i < ray1->zeroSet.size(); i++) {
-        zeroSet.push_back(ray1->zeroSet[i] & ray2->zeroSet[i]);
     }
     return new RayAlt(zeroSet, innerProductVector);
 }
@@ -357,24 +384,12 @@ void DoubleDescriptionAlt::enumerateExtremalRaysAlt(const MatrixInt& subspace,
 }
 
 bool DoubleDescriptionAlt::isAdjacent(vector<RayAlt*>& src, RayAlt* ray1, RayAlt* ray2) {
-    vector<setbits> pattern(ray1->zeroSet.size());
-    for (int i = 0; i < ray1->zeroSet.size(); i++) {
-        pattern[i] = ray1->zeroSet[i] & ray2->zeroSet[i];
-    }
-
+    setbits pattern = ray1->zeroSet & ray2->zeroSet;
     for (RayAlt* ray : src) {
         if(ray == ray1 || ray == ray2) {
             continue;
         }
-        bool isSubset = true;
-        for (int i = 0; i < ray1->zeroSet.size(); i++) {
-            if ((pattern[i] & ray->zeroSet[i]) != pattern[i]) {
-                isSubset = false;
-                break;
-            }
-        }
-        //They are not adjacent if Z(u) & Z(v) is a subset of Z(z)
-        if (isSubset) {
+        if ((pattern & ray->zeroSet) == pattern) {
             return false;
         }
     }
@@ -383,17 +398,15 @@ bool DoubleDescriptionAlt::isAdjacent(vector<RayAlt*>& src, RayAlt* ray1, RayAlt
 
 bool DoubleDescriptionAlt::isCompatible(RayAlt* ray1, RayAlt* ray2) {
     //If less bits are used, zeroSet is 11111..., negation is all zeros
-    for (int i = 0; i < ray1->zeroSet.size(); i++) {
-        //Pattern is the one set of the combined
-        setbits pattern = ~(ray1->zeroSet[i] & ray2->zeroSet[i]);
-        //011, 110 then 101 pattern check. Check is done on the set of ones
-        if ((((pattern & FIRST_BIT) << 1) & pattern) ||
-            (((pattern & SECOND_BIT) << 1) & pattern) ||
-            (((pattern & FIRST_BIT) << 2) & pattern)) { 
-            return false;
-        } 
+    setbits pattern = ~(ray1->zeroSet & ray2->zeroSet);
+    //011, 110 then 101 pattern check. Check is done on the set of ones
+    if ((((pattern & FIRST_BIT) << 1) & pattern) ||
+        (((pattern & SECOND_BIT) << 1) & pattern) ||
+        (((pattern & FIRST_BIT) << 2) & pattern)) { 
+        return false;
+    } else {
+        return true;
     }
-    return true;
 }
 
 bool DoubleDescriptionAlt::intersectHyperplaneAlt(
@@ -440,9 +453,9 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
 #endif
 
     for (auto ray : src) {
-        if(ray->sign() == 1) {
+        if(ray->innerProductVector[ray->timeAlive] > 0) {
             poset.push_back(ray);
-        } else if(ray->sign() == -1) {
+        } else if(ray->innerProductVector[ray->timeAlive] < 0) {
             negset.push_back(ray);
         } else {
             ray->timeAlive++;

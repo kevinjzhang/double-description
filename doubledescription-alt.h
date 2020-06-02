@@ -28,12 +28,12 @@ class REGINA_API DoubleDescriptionAlt {
     private:
         struct RayAlt {
             unsigned long timeAlive;
-            vector<setbits> zeroSet; 
+            setbits zeroSet; 
             vector<Rational> innerProductVector;
 
             RayAlt (int unitIndex, const MatrixInt& subspace, vector<unsigned long>& ordering);
 
-            RayAlt (vector<setbits>& zeroSet, vector<Rational>& innerProductVector);
+            RayAlt (setbits& zeroSet, vector<Rational>& innerProductVector);
 
             int sign();
 
@@ -43,9 +43,13 @@ class REGINA_API DoubleDescriptionAlt {
 
         DoubleDescriptionAlt();
 
+        static vector<Ray> reduce(const MatrixInt& subspace);
+
         static bool isCompatible(RayAlt* ray1, RayAlt* ray2);
 
         static bool isAdjacent(vector<RayAlt*>& src, RayAlt* ray1, RayAlt* ray2);
+
+        static bool isAdjacentAlgebraic(vector<Ray>& constraints, RayAlt* ray1, RayAlt* ray2);
 
         static RayAlt* constructRay(RayAlt* ray1, RayAlt* ray2, int hyperPlane, const MatrixInt& subspace);
 
