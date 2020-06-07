@@ -10,7 +10,6 @@
 #include <utility>
 
 #define ROOT                -1
-#define BFS
 
 class SetTrie {
     public:
@@ -47,7 +46,6 @@ class SetTrie {
         bool isSubsetDFS(std::set<int> set, intptr_t uid1, intptr_t uid2) {
             // check if set is included in trie
             const std::vector<int> sequence(set.cbegin(), set.cend());
-            const size_t last_index = sequence.size() - 1;
 
             std::vector<std::pair<Node *, int>> stack;
             stack.emplace_back(root, 0);
@@ -60,6 +58,15 @@ class SetTrie {
                 std::tie(node, i) = stack.back();
                 stack.pop_back();
 
+                // check if match has been found
+                if (i >= sequence.size()) {
+                    if (node->uid != uid1 && node->uid != uid2 && node->isEnd) {
+                        return true;
+                    }
+
+                    continue;
+                }
+
                 // iterate through neighbours
                 for (Node *next : node->neighbours) {
                     // check if next value is less
@@ -71,11 +78,6 @@ class SetTrie {
 
                     // check if next value is equal
                     if (next->val == sequence[i]) {
-                        // check if match has been found
-                        if (i == last_index && next->uid != uid1 && next->uid != uid2) {
-                            return true;
-                        }
-
                         // add to stack with incremented index
                         stack.emplace_back(next, i + 1);
                         continue;

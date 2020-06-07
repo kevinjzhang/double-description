@@ -521,7 +521,7 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
                         set.insert(j);
                     }
                 }
-                if(!setTrie.isSubset(set, reinterpret_cast<intptr_t>(ray1), reinterpret_cast<intptr_t>(ray2))) {
+                if(!setTrie.isSubsetDFS(set, reinterpret_cast<intptr_t>(ray1), reinterpret_cast<intptr_t>(ray2))) {
                     dest.push_back(constructRay(ray1, ray2, currentHyperplane, subspace));
                 } 
             }

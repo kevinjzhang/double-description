@@ -25,7 +25,7 @@ int main() {
     // triangulations.push_back(Example<3>::rp2xs1());
     // triangulations.push_back(Example<3>::poincareHomologySphere());
     triangulations.push_back(Example<3>::weeks());
-    // triangulations.push_back(Triangulation<3>::fromIsoSig("LvMLQQbfefgihhiixiptvvvgof"));
+    triangulations.push_back(Triangulation<3>::fromIsoSig("LvMLQQbfefgihhiixiptvvvgof"));
     // triangulations.push_back(Triangulation<3>::fromIsoSig("sLAvvLLAMLQQQbcbjimnkonlqrnoqqrrxxjjndubihhvnob"));
     // triangulations.push_back(Example<3>::weberSeifert());
     int i = 0;
@@ -36,15 +36,15 @@ int main() {
         auto it = NSVectorQuadOutputIterator();
         
         auto start = chrono::high_resolution_clock::now();
-        cout << "Method 2: " << i << endl;
-        DoubleDescriptionAlt::enumerateExtremalRaysAlt<NSVectorQuad>(*subspace, enumConstraints);
+        cout << "Method 1: " << i << endl;
+        DoubleDescription::enumerateExtremalRays<NSVectorQuad>(it, *subspace, enumConstraints);
         auto stop = chrono::high_resolution_clock::now();
         auto duration = chrono::duration_cast<chrono::microseconds>(stop - start);
         cout << duration.count() << endl;
 
-        cout << "Method 1: " << i << endl;
+        cout << "Method 2: " << i << endl;
         start = chrono::high_resolution_clock::now();
-        DoubleDescription::enumerateExtremalRays<NSVectorQuad>(it, *subspace, enumConstraints);
+        DoubleDescriptionAlt::enumerateExtremalRaysAlt<NSVectorQuad>(*subspace, enumConstraints);
         stop = chrono::high_resolution_clock::now();
         duration = chrono::duration_cast<chrono::microseconds>(stop - start);
         cout << duration.count() << endl;
