@@ -5,6 +5,7 @@
 //#define LOG_FILENAME                "log.txt"
 //#define MAKEGRAPH                   1
 #define DISPLAYANS
+#define USESETTRIE
 #define BIT_SIZE                    63
 #define FIRST_BIT                   0x1249249249249249 //0|001001....
 #define SECOND_BIT                  0x2492492492492492 //0|010010....
@@ -18,6 +19,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <set>
 #include <vector>
 #include <list>
 #include <fstream>
@@ -28,6 +30,8 @@
 #include <regina-core.h>
 #include <regina-config.h>
 #include <maths/integer.h>
+
+#include "setTrie.h"
 
 using namespace std;
 
@@ -79,7 +83,8 @@ struct LexicographicalOrder {
     }
 };
 
-LargeInteger gcd(LargeInteger a, LargeInteger b) {
+template <class Number>
+Number gcd(Number a, Number b) {
     if(a > b) {
         auto temp = a;
         a = b;
@@ -161,6 +166,15 @@ vector<Ray> DoubleDescriptionAlt::reduce(const MatrixInt& subspace) {
     return orderedConstraints;   
 }
 
+void subtractRow(vector<int>& pivot, vector<int>& row, int startingIndex) {
+    auto gcdVal = gcd(row[startingIndex], pivot[startingIndex]);
+    auto pivotMult = row[startingIndex] / gcdVal;
+    auto rowMult = pivot[startingIndex] / gcdVal;
+    for (int i = startingIndex; i < row.size(); i++) {
+        row[i] = row[i] * rowMult - pivot[i] * pivotMult;
+    }
+}
+
 bool DoubleDescriptionAlt::isAdjacentAlgebraic(vector<Ray>& constraints, RayAlt* ray1, RayAlt* ray2) {
     unsigned long rows = constraints.size();
     unsigned long cols = constraints[0].size();
@@ -174,14 +188,31 @@ bool DoubleDescriptionAlt::isAdjacentAlgebraic(vector<Ray>& constraints, RayAlt*
         } 
     }
 
-    vector<Ray> subspace;
-    for (int i = 0; i < rows; i++) {
-        Ray row(indices.size());
+    //Diagonal rows
+    vector<vector<LargeInteger>> subspace;
+    for (auto index : indices) {
+        vector<LargeInteger> row(indices.size());
         for(int j = 0; j < indices.size(); j++) {
-            row.setElement(j, constraints[i][indices[j]]);
+            row[j] = constraints[index][indices[j]];
         }
-        subspace.push_back(row);
+        subspace.push_back(row);        
+    }
+
+    //Non diagonal rows
+    for (int i = 0; i < rows; i++) {
+        if(indexSet.count(i) == 0) {
+            vector<LargeInteger> row(indices.size());
+            for(int j = 0; j < indices.size(); j++) {
+                row[j] = constraints[i][indices[j]];
+            }
+            subspace.push_back(row);
+        }
     }    
+
+    //Initial elimination
+    for (int i = 0; i < indices.size(); i++) {
+
+    }
     return true;
 }
 
@@ -300,7 +331,8 @@ template <typename RayClass>
 void DoubleDescriptionAlt::enumerateExtremalRaysAlt(const MatrixInt& subspace, 
     const EnumConstraints* constraints) {
     unsigned long eqns = subspace.rows();
-    unsigned long dim = subspace.columns(); //Represents number of dimensions times 3
+    unsigned long dim = subspace.columns();
+    reduce(subspace);
 
 #ifdef TIMING
     auto start = chrono::high_resolution_clock::now();
@@ -466,6 +498,37 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
 #ifdef DEBUG
     cout << "Filtering - Poset:" << poset.size() << " Negset:" << negset.size() << " Dest:" << dest.size() << endl;
 #endif 
+
+#ifdef USESETTRIE
+    //Set trie version
+    SetTrie setTrie = SetTrie();
+    for(auto ray : src) {
+        vector<int> set;
+        for (int j = 0; j < subspace.columns(); j++) {
+            if ((1 << j) & ray->zeroSet) { 
+                set.push_back(j);
+            }   
+        }
+        setTrie.insert(set, reinterpret_cast<intptr_t>(ray));        
+    }
+    for(auto ray1 : poset) {
+        for(auto ray2 : negset) {
+            if(isCompatible(ray1, ray2)) {
+                setbits zeroSet = ray1->zeroSet & ray2->zeroSet;
+                set<int> set;
+                for (int j = 0; j < subspace.columns(); j++) {
+                    if ((1 << j) & zeroSet) { 
+                        set.insert(j);
+                    }
+                }
+                if(!setTrie.isSubset(set, reinterpret_cast<intptr_t>(ray1), reinterpret_cast<intptr_t>(ray2))) {
+                    dest.push_back(constructRay(ray1, ray2, currentHyperplane, subspace));
+                } 
+            }
+        }
+    }
+#elif    
+
     //Filtering and adjacency steps
     for(auto ray1 : poset) {
         for(auto ray2 : negset) {
@@ -474,6 +537,7 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
             }
         }
     }   
+#endif
     for (auto ray : poset) {
         delete ray;
     }

@@ -1,6 +1,7 @@
 #include <vector>
 #include <chrono> 
 
+#include "setTrie.h"
 #include "doubledescription-alt.h"
 #include<triangulation/dim3.h>
 #include<triangulation/example3.h>
@@ -20,13 +21,12 @@ using namespace regina;
 
 int main() {
     std::vector<Triangulation<3>*> triangulations;
-    
     // triangulations.push_back(Example<3>::s2xs1());
     // triangulations.push_back(Example<3>::rp2xs1());
     // triangulations.push_back(Example<3>::poincareHomologySphere());
     triangulations.push_back(Example<3>::weeks());
-    // triangulations.push_back(fromIsoSig<3>("LvMLQQbfefgihhiixiptvvvgof"));
-    // triangulations.push_back(TriangulationBase::fromIsoSig<3>("sLAvvLLAMLQQQbcbjimnkonlqrnoqqrrxxjjndubihhvnob"));
+    // triangulations.push_back(Triangulation<3>::fromIsoSig("LvMLQQbfefgihhiixiptvvvgof"));
+    // triangulations.push_back(Triangulation<3>::fromIsoSig("sLAvvLLAMLQQQbcbjimnkonlqrnoqqrrxxjjndubihhvnob"));
     // triangulations.push_back(Example<3>::weberSeifert());
     int i = 0;
     for(auto tri : triangulations) {
