@@ -4,6 +4,7 @@
 #include <vector>
 #include <iostream>
 #include <unordered_map>
+#include <climits>
 #include <set>
 #include <queue>
 #include <algorithm>
@@ -18,13 +19,15 @@ class SetTrie {
         }
 
         //Assumes list is ordered
-        bool isSubset(std::set<int> set, intptr_t uid1, intptr_t uid2) {
-            std::queue<Node*> q;
+        bool isSubset(std::vector<int> sequence, intptr_t uid1, intptr_t uid2) {
+            std::queue<std::pair<Node*, int>> q;
             int index = 0;
-            int last = *set.crbegin();
-            q.push(root);
+            int last = sequence.back();
+            sequence.push_back(INT_MAX);
+            q.push({root, 0});
             while (!q.empty()) {
-                auto node = q.front();
+                auto node = q.front().first;
+                int i = q.front().second;
                 q.pop();
                 if (node->val >= last && node->isEnd) {
                     if (node->uid == uid1 || node->uid == uid2) {
@@ -33,20 +36,21 @@ class SetTrie {
                         return true;
                     }
                 }
-                auto it = set.upper_bound(node->val); //Points to next value in set
+
                 for (auto neighbour : node->neighbours) {
-                    if (it == set.end() || neighbour->val <= *it) { //Valid neighbour to explore
-                        q.push(neighbour);
+                    if (neighbour->val <= sequence[i]) {
+                        if(neighbour->val == sequence[i]) {
+                            q.push({neighbour, i + 1});
+                        } else {
+                            q.push({neighbour, i});
+                        }
                     }
                 }
             }
             return false;
         }
 
-        bool isSubsetDFS(std::set<int> set, intptr_t uid1, intptr_t uid2) {
-            // check if set is included in trie
-            const std::vector<int> sequence(set.cbegin(), set.cend());
-
+        bool isSubsetDFS(std::vector<int> sequence, intptr_t uid1, intptr_t uid2) {
             std::vector<std::pair<Node *, int>> stack;
             stack.emplace_back(root, 0);
 
