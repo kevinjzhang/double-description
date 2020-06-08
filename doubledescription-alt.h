@@ -1,6 +1,7 @@
 #ifndef __DOUBLEDESCRIPTION_ALT_H
 #define __DOUBLEDESCRIPTION_ALT_H
 
+#include <bitset>
 #include <regina-core.h>
 #include <enumerate/enumconstraints.h>
 #include <enumerate/ordering.h>
@@ -10,9 +11,8 @@
 #include <vector>
 #include <maths/rational.h>
 
-#define setbits                     uint64_t
-
 using namespace std;
+#define setbits                     bitset<128>
 
 namespace regina {
 
@@ -33,9 +33,7 @@ class REGINA_API DoubleDescriptionAlt {
 
             RayAlt (int unitIndex, const MatrixInt& subspace, vector<unsigned long>& ordering);
 
-            RayAlt (setbits& zeroSet, vector<Rational>& innerProductVector);
-
-            int sign();
+            RayAlt (setbits zeroSet, vector<Rational>& innerProductVector);
 
             template <typename RayClass>
             void recover(RayClass* dest, const MatrixInt& subspace);

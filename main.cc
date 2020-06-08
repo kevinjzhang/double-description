@@ -27,7 +27,7 @@ int main() {
     triangulations.push_back(Example<3>::weeks());
     // triangulations.push_back(Triangulation<3>::fromIsoSig("LvMLQQbfefgihhiixiptvvvgof"));
     // triangulations.push_back(Triangulation<3>::fromIsoSig("sLAvvLLAMLQQQbcbjimnkonlqrnoqqrrxxjjndubihhvnob"));
-    // triangulations.push_back(Example<3>::weberSeifert());
+    triangulations.push_back(Example<3>::weberSeifert());
     int i = 0;
     for(auto tri : triangulations) {
         MatrixInt* subspace = makeMatchingEquations(tri, NS_QUAD);
@@ -37,7 +37,7 @@ int main() {
         
         auto start = chrono::high_resolution_clock::now();
         cout << "Method 1: " << i << endl;
-        DoubleDescription::enumerateExtremalRays<NSVectorQuad>(it, *subspace, enumConstraints);
+        // DoubleDescription::enumerateExtremalRays<NSVectorQuad>(it, *subspace, enumConstraints);
         auto stop = chrono::high_resolution_clock::now();
         auto duration = chrono::duration_cast<chrono::microseconds>(stop - start);
         cout << duration.count() << endl;

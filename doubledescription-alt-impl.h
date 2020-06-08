@@ -1,22 +1,6 @@
 #ifndef __DOUBLEDESCRIPTION_ALT_IMPL_H
 #define __DOUBLEDESCRIPTION_ALT_IMPL_H
 
-//Bit size is 32 rounded down to multiple of 3
-// #define LOG_FILENAME                "log.txt"
-// #define MAKEGRAPH                   1
-#define DISPLAYANS
-// #define USESETTRIE
-#define PARALLEL
-#define BIT_SIZE                    63
-#define FIRST_BIT                   0x1249249249249249 //0|001001....
-#define SECOND_BIT                  0x2492492492492492 //0|010010....
-#define THIRD_BIT                   0x4924924924924924 //0|100100....
-
-#define setbits                     uint64_t
-
-// #define TIMING                      1
-// #define DEBUG                       1
-
 
 #include <algorithm>
 #include <iterator>
@@ -26,8 +10,6 @@
 #include <fstream>
 #include <unordered_set>
 #include <unordered_map>
-#include <omp.h>
-#include <bitset>
 #include <regina-core.h>
 #include <regina-config.h>
 #include <maths/integer.h>
@@ -35,6 +17,23 @@
 #include "setTrie.h"
 
 using namespace std;
+//Bit size is 32 rounded down to multiple of 3
+// #define LOG_FILENAME                "log.txt"
+// #define MAKEGRAPH                   1
+// #define DISPLAYANS
+// #define USESETTRIE
+#define PARALLEL
+
+#define BIT_SIZE                    126
+#define setbits                     bitset<128>
+
+#define TIMING                      1
+#define DEBUG                       1
+
+//Constants
+const setbits FIRST_BIT (string("0001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001"));
+const setbits SECOND_BIT(string("0010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010"));
+const setbits THIRD_BIT (string("0100100100100100100100100100100100100100100100100100100100100100100100100100100100100100100100100100100100100100100100100100100"));
 
 namespace regina {
 
@@ -53,30 +52,6 @@ void getConnectedComponent(int node, unordered_map<int, vector<int>>& graph,
 }
 #endif
 
-struct LexicographicalOrder {      
-    const MatrixInt* subspace;
-    LexicographicalOrder (const MatrixInt& subspace) {
-        this->subspace = &subspace;
-    }
-
-    bool operator() (int r1, int r2) {
-        unsigned long cols = subspace->columns();
-        for (int i = 0; i < cols; i++) {
-            bool comp1 = subspace->entry(r1, i).isZero();
-            bool comp2 = subspace->entry(r2, i).isZero();
-            if (comp1 && !comp2) {
-                return true;
-            } else if (comp2 && !comp1) {
-                return false;
-            } else if (subspace->entry(r1, i) != subspace->entry(r2, i)) {
-                return subspace->entry(r1, i) < subspace->entry(r2, i);
-            }
-        }
-        //Return true if equal
-        return true;
-    }
-};
-
 template <class Number>
 Number gcd(Number a, Number b) {
     if(a > b) {
@@ -90,36 +65,6 @@ Number gcd(Number a, Number b) {
         a = rem;
     }
     return b;
-}
-
-//Constructor based on unit vector
-DoubleDescriptionAlt::RayAlt::RayAlt (int unitIndex, const MatrixInt& subspace, vector<unsigned long>& ordering) {
-    unsigned long eqns = subspace.rows();
-    unsigned long dim = subspace.columns();
-    zeroSet = UINT64_MAX;
-    innerProductVector = vector<Rational>(eqns, 0);
-    zeroSet ^= (1 << unitIndex);
-    for(int i = 0; i < eqns; i++) {
-        innerProductVector[i] = subspace.entry(ordering[i], unitIndex);
-    }
-    timeAlive = 0;
-}
-
-//Constructor with given parameters
-DoubleDescriptionAlt::RayAlt::RayAlt (setbits& zeroSet, vector<Rational>& innerProductVector) {
-    this->zeroSet = zeroSet;
-    this->innerProductVector = innerProductVector;
-    timeAlive = 0;
-}
-
-int DoubleDescriptionAlt::RayAlt::sign() {
-    if(innerProductVector[timeAlive] > 0) {
-        return 1;
-    } else if(innerProductVector[timeAlive] < 0) {
-        return -1;
-    } else {
-        return 0;
-    }
 }
 
 vector<Ray> DoubleDescriptionAlt::reduce(const MatrixInt& subspace) {
@@ -176,7 +121,7 @@ bool DoubleDescriptionAlt::isAdjacentAlgebraic(vector<Ray>& constraints, RayAlt*
     vector<uint32_t> indices;
     unordered_set<uint32_t> indexSet;
     for (int j = 0; j < cols; j++) {
-        if ((1 << j) & ~zeroSet) { 
+        if (!zeroSet.test(j)) { 
             indices.push_back(j);
             indexSet.insert(j);
         } 
@@ -222,7 +167,7 @@ void DoubleDescriptionAlt::RayAlt::recover(RayClass* dest, const MatrixInt& subs
     //Set of indices to check memebership
     unordered_set<uint32_t> indexSet;
     for (int j = 0; j < rem; j++) {
-        if ((1 << j) & ~zeroSet) { 
+        if (!zeroSet.test(j)) { 
             indices.push_back(j);
             indexSet.insert(j);
         } 
@@ -300,6 +245,50 @@ void DoubleDescriptionAlt::RayAlt::recover(RayClass* dest, const MatrixInt& subs
     cout << endl;
     #endif
     dest = new RayClass(integerSolutions);
+}
+
+struct LexicographicalOrder {      
+    const MatrixInt* subspace;
+    LexicographicalOrder (const MatrixInt& subspace) {
+        this->subspace = &subspace;
+    }
+
+    bool operator() (int r1, int r2) {
+        unsigned long cols = subspace->columns();
+        for (int i = 0; i < cols; i++) {
+            bool comp1 = subspace->entry(r1, i).isZero();
+            bool comp2 = subspace->entry(r2, i).isZero();
+            if (comp1 && !comp2) {
+                return true;
+            } else if (comp2 && !comp1) {
+                return false;
+            } else if (subspace->entry(r1, i) != subspace->entry(r2, i)) {
+                return subspace->entry(r1, i) < subspace->entry(r2, i);
+            }
+        }
+        //Return true if equal
+        return true;
+    }
+};
+
+//Constructor based on unit vector
+DoubleDescriptionAlt::RayAlt::RayAlt (int unitIndex, const MatrixInt& subspace, vector<unsigned long>& ordering) {
+    unsigned long eqns = subspace.rows();
+    unsigned long dim = subspace.columns();
+    zeroSet.set();
+    innerProductVector = vector<Rational>(eqns, 0);
+    zeroSet.reset(unitIndex);
+    for(int i = 0; i < eqns; i++) {
+        innerProductVector[i] = subspace.entry(ordering[i], unitIndex);
+    }
+    timeAlive = 0;
+}
+
+//Constructor with given parameters
+DoubleDescriptionAlt::RayAlt::RayAlt (setbits zeroSet, vector<Rational>& innerProductVector) {
+    this->zeroSet = zeroSet;
+    this->innerProductVector = innerProductVector;
+    timeAlive = 0;
 }
 
 //Uses the selected hyperplane to construct the inner product vector
@@ -424,11 +413,11 @@ bool DoubleDescriptionAlt::isAdjacent(vector<RayAlt*>& src, RayAlt* ray1, RayAlt
 
 bool DoubleDescriptionAlt::isCompatible(RayAlt* ray1, RayAlt* ray2) {
     //If less bits are used, zeroSet is 11111..., negation is all zeros
-    setbits pattern = ~(ray1->zeroSet & ray2->zeroSet);
+    setbits pattern = (ray1->zeroSet & ray2->zeroSet).flip();
     //011, 110 then 101 pattern check. Check is done on the set of ones
-    if ((((pattern & FIRST_BIT) << 1) & pattern) ||
-        (((pattern & SECOND_BIT) << 1) & pattern) ||
-        (((pattern & FIRST_BIT) << 2) & pattern)) { 
+    if ((((pattern & FIRST_BIT) << 1) & pattern).any() ||
+        (((pattern & SECOND_BIT) << 1) & pattern).any() ||
+        (((pattern & FIRST_BIT) << 2) & pattern).any()) { 
         return false;
     } else {
         return true;
@@ -511,7 +500,7 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
                     setbits zeroSet = ray1->zeroSet & ray2->zeroSet;
                     vector<int> set;
                     for (int j = 0; j < subspace.columns(); j++) {
-                        if ((1 << j) & zeroSet) { 
+                        if (zeroSet.test(j)) { 
                             set.push_back(j);
                         }
                     }
