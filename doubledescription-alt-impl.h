@@ -6,6 +6,7 @@
 // #define MAKEGRAPH                   1
 #define DISPLAYANS
 // #define USESETTRIE
+#define PARALLEL
 #define BIT_SIZE                    63
 #define FIRST_BIT                   0x1249249249249249 //0|001001....
 #define SECOND_BIT                  0x2492492492492492 //0|010010....
@@ -504,32 +505,38 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
         }
         setTrie.insert(set, reinterpret_cast<intptr_t>(ray));        
     }
-    for(auto ray1 : poset) {
-        for(auto ray2 : negset) {
-            if(isCompatible(ray1, ray2)) {
-                setbits zeroSet = ray1->zeroSet & ray2->zeroSet;
-                vector<int> set;
-                for (int j = 0; j < subspace.columns(); j++) {
-                    if ((1 << j) & zeroSet) { 
-                        set.push_back(j);
+    auto filter = [&setTrie, &negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
+            for(auto ray2 : negset) {
+                if(isCompatible(ray1, ray2)) {
+                    setbits zeroSet = ray1->zeroSet & ray2->zeroSet;
+                    vector<int> set;
+                    for (int j = 0; j < subspace.columns(); j++) {
+                        if ((1 << j) & zeroSet) { 
+                            set.push_back(j);
+                        }
                     }
+                    if(!setTrie.isSubset(set, reinterpret_cast<intptr_t>(ray1), reinterpret_cast<intptr_t>(ray2))) {
+                        dest.push_back(constructRay(ray1, ray2, currentHyperplane, subspace));
+                    } 
                 }
-                if(!setTrie.isSubset(set, reinterpret_cast<intptr_t>(ray1), reinterpret_cast<intptr_t>(ray2))) {
+            }
+        };
+#else
+    auto filter = [&negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
+            for(auto ray2 : negset) {
+                if(isCompatible(ray1, ray2) && isAdjacent(src, ray1, ray2)) {
                     dest.push_back(constructRay(ray1, ray2, currentHyperplane, subspace));
-                } 
+                }
             }
-        }
-    }
-#else    
+        };
+#endif
 
-    //Filtering and adjacency steps
+#ifdef PARALLEL
+    for_each(poset.begin(), poset.end(), filter);
+#else
     for(auto ray1 : poset) {
-        for(auto ray2 : negset) {
-            if(isCompatible(ray1, ray2) && isAdjacent(src, ray1, ray2)) {
-                dest.push_back(constructRay(ray1, ray2, currentHyperplane, subspace));
-            }
-        }
-    }   
+        filter(ray1);
+    }
 #endif
     for (auto ray : poset) {
         delete ray;

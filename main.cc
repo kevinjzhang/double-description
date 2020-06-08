@@ -26,7 +26,7 @@ int main() {
     // triangulations.push_back(Example<3>::poincareHomologySphere());
     triangulations.push_back(Example<3>::weeks());
     // triangulations.push_back(Triangulation<3>::fromIsoSig("LvMLQQbfefgihhiixiptvvvgof"));
-    triangulations.push_back(Triangulation<3>::fromIsoSig("sLAvvLLAMLQQQbcbjimnkonlqrnoqqrrxxjjndubihhvnob"));
+    // triangulations.push_back(Triangulation<3>::fromIsoSig("sLAvvLLAMLQQQbcbjimnkonlqrnoqqrrxxjjndubihhvnob"));
     // triangulations.push_back(Example<3>::weberSeifert());
     int i = 0;
     for(auto tri : triangulations) {
