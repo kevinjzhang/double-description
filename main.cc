@@ -25,9 +25,9 @@ int main() {
     // triangulations.push_back(Example<3>::rp2xs1());
     // triangulations.push_back(Example<3>::poincareHomologySphere());
     triangulations.push_back(Example<3>::weeks());
-    // triangulations.push_back(Triangulation<3>::fromIsoSig("LvMLQQbfefgihhiixiptvvvgof"));
-    // triangulations.push_back(Triangulation<3>::fromIsoSig("sLAvvLLAMLQQQbcbjimnkonlqrnoqqrrxxjjndubihhvnob"));
-    triangulations.push_back(Example<3>::weberSeifert());
+    // triangulations.push_back(Triangulation<3>::fromIsoSig("jLvMLQQbfefgihhiixiptvvvgof"));
+    // triangulations.push_back(Triangulation<3>::fromIsoSig("sLAvvLLAMLQQQbcbjimnkonlqrnoqqrrxxjjndubihhvnobjgnv"));
+    // triangulations.push_back(Example<3>::weberSeifert());
     int i = 0;
     for(auto tri : triangulations) {
         MatrixInt* subspace = makeMatchingEquations(tri, NS_QUAD);

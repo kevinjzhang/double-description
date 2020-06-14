@@ -26,17 +26,16 @@ class REGINA_API DoubleDescriptionAlt {
             const EnumConstraints* constraints);
 
     private:
-        struct RayAlt {
-            unsigned long timeAlive;
-            setbits zeroSet; 
-            vector<Rational> innerProductVector;
+        class RayAlt : public Ray {
+            public:
+                unsigned long timeAlive;
+                setbits zeroSet; 
 
-            RayAlt (int unitIndex, const MatrixInt& subspace, vector<unsigned long>& ordering);
+                RayAlt (int unitIndex, const MatrixInt& subspace, vector<unsigned long>& ordering);
+                RayAlt (RayAlt* ray1, RayAlt* ray2, int hyperPlane, const MatrixInt& subspace);
 
-            RayAlt (setbits zeroSet, vector<Rational>& innerProductVector);
-
-            template <typename RayClass>
-            void recover(RayClass* dest, const MatrixInt& subspace);
+                template <typename RayClass>
+                void recover(RayClass* dest, const MatrixInt& subspace);
         };
 
         DoubleDescriptionAlt();
@@ -48,8 +47,6 @@ class REGINA_API DoubleDescriptionAlt {
         static bool isAdjacent(vector<RayAlt*>& src, RayAlt* ray1, RayAlt* ray2);
 
         static bool isAdjacentAlgebraic(vector<Ray>& constraints, RayAlt* ray1, RayAlt* ray2);
-
-        static RayAlt* constructRay(RayAlt* ray1, RayAlt* ray2, int hyperPlane, const MatrixInt& subspace);
 
         static bool intersectHyperplaneAlt(int currentHyperplane, vector<RayAlt*>& src, 
             vector<RayAlt*>& dest, const MatrixInt& subspace);

@@ -13,6 +13,7 @@
 #include <regina-core.h>
 #include <regina-config.h>
 #include <maths/integer.h>
+#include <maths/ray.h>
 
 #include "setTrie.h"
 
@@ -20,9 +21,9 @@ using namespace std;
 //Bit size is 32 rounded down to multiple of 3
 // #define LOG_FILENAME                "log.txt"
 // #define MAKEGRAPH                   1
-// #define DISPLAYANS
+#define DISPLAYANS
 // #define USESETTRIE
-#define PARALLEL
+// #define PARALLEL
 
 #define BIT_SIZE                    126
 #define setbits                     bitset<128>
@@ -272,42 +273,28 @@ struct LexicographicalOrder {
 };
 
 //Constructor based on unit vector
-DoubleDescriptionAlt::RayAlt::RayAlt (int unitIndex, const MatrixInt& subspace, vector<unsigned long>& ordering) {
-    unsigned long eqns = subspace.rows();
-    unsigned long dim = subspace.columns();
+DoubleDescriptionAlt::RayAlt::RayAlt (int unitIndex, const MatrixInt& subspace, vector<unsigned long>& ordering) : Ray(subspace.rows()) {
     zeroSet.set();
-    innerProductVector = vector<Rational>(eqns, 0);
     zeroSet.reset(unitIndex);
-    for(int i = 0; i < eqns; i++) {
-        innerProductVector[i] = subspace.entry(ordering[i], unitIndex);
+    for(int i = 0; i < subspace.rows(); i++) {
+        setElement(i, (LargeInteger)subspace.entry(ordering[i], unitIndex));
     }
-    timeAlive = 0;
-}
-
-//Constructor with given parameters
-DoubleDescriptionAlt::RayAlt::RayAlt (setbits zeroSet, vector<Rational>& innerProductVector) {
-    this->zeroSet = zeroSet;
-    this->innerProductVector = innerProductVector;
     timeAlive = 0;
 }
 
 //Uses the selected hyperplane to construct the inner product vector
-DoubleDescriptionAlt::RayAlt* DoubleDescriptionAlt::constructRay(RayAlt* ray1, RayAlt* ray2, int hyperPlane, 
-    const MatrixInt& subspace) {
-    setbits zeroSet = ray1->zeroSet & ray2->zeroSet;    
-    vector<Rational> innerProductVector;
-    unsigned long eqns = subspace.rows();
-    //Starting indices of each ray
-    unsigned long rayIndex1 = subspace.rows() - ray1->innerProductVector.size();
-    unsigned long rayIndex2 = subspace.rows() - ray2->innerProductVector.size();
-    for(int i = hyperPlane + 1; i < eqns; i++) {
-        //ray1 = w, ray2 = u, i - rayIndex = j(in formula), hyperplane - rayIndex = i(in formular)
-        Rational val = (ray1->innerProductVector[i - rayIndex1] * ray2->innerProductVector[hyperPlane - rayIndex2]
-            - ray2->innerProductVector[i - rayIndex2] * ray1->innerProductVector[hyperPlane - rayIndex1])
-            / (ray2->innerProductVector[hyperPlane - rayIndex2] - ray1->innerProductVector[hyperPlane - rayIndex1]);
-        innerProductVector.push_back(val);
+DoubleDescriptionAlt::RayAlt::RayAlt (RayAlt* ray1, RayAlt* ray2, int hyperPlane, 
+    const MatrixInt& subspace) : Ray(subspace.rows()) {
+    zeroSet = ray1->zeroSet & ray2->zeroSet; 
+    timeAlive = hyperPlane + 1;
+    for(int i = hyperPlane + 1; i < subspace.rows(); i++) {
+        elements[i] = ray1->elements[i] * ray2->elements[hyperPlane]
+            - ray2->elements[i] * ray1->elements[hyperPlane];
     }
-    return new RayAlt(zeroSet, innerProductVector);
+    scaleDown();
+    if (ray2->elements[hyperPlane] < zero) {
+        negate();
+    }
 }
 
 template <typename RayClass>
@@ -468,9 +455,9 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
 #endif
 
     for (auto ray : src) {
-        if(ray->innerProductVector[ray->timeAlive] > 0) {
+        if((*ray)[ray->timeAlive] > 0) {
             poset.push_back(ray);
-        } else if(ray->innerProductVector[ray->timeAlive] < 0) {
+        } else if((*ray)[ray->timeAlive] < 0) {
             negset.push_back(ray);
         } else {
             ray->timeAlive++;
@@ -488,7 +475,7 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
     for(auto ray : src) {
         vector<int> set;
         for (int j = 0; j < subspace.columns(); j++) {
-            if ((1 << j) & ray->zeroSet) { 
+            if (ray->zeroSet.test(j)) { 
                 set.push_back(j);
             }   
         }
@@ -505,7 +492,7 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
                         }
                     }
                     if(!setTrie.isSubset(set, reinterpret_cast<intptr_t>(ray1), reinterpret_cast<intptr_t>(ray2))) {
-                        dest.push_back(constructRay(ray1, ray2, currentHyperplane, subspace));
+                        dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
                     } 
                 }
             }
@@ -514,7 +501,7 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
     auto filter = [&negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
             for(auto ray2 : negset) {
                 if(isCompatible(ray1, ray2) && isAdjacent(src, ray1, ray2)) {
-                    dest.push_back(constructRay(ray1, ray2, currentHyperplane, subspace));
+                    dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
                 }
             }
         };
