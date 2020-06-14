@@ -21,9 +21,15 @@ class ProgressTracker;
 
 class REGINA_API DoubleDescriptionAlt {
     public:
+        enum Algorithm {USE_SIMPLE, USE_TRIE, USE_GRAPH, USE_MATRIX, USE_COMBINED}; 
+
+        struct RunOptions {
+            Algorithm algorithm;
+        };
+
         template <typename RayClass>
         static void enumerateExtremalRaysAlt(const MatrixInt& subspace, 
-            const EnumConstraints* constraints);
+            RunOptions options);
 
     private:
         class RayAlt : public Ray {
@@ -49,7 +55,7 @@ class REGINA_API DoubleDescriptionAlt {
         static bool isAdjacentAlgebraic(vector<Ray>& constraints, RayAlt* ray1, RayAlt* ray2);
 
         static bool intersectHyperplaneAlt(int currentHyperplane, vector<RayAlt*>& src, 
-            vector<RayAlt*>& dest, const MatrixInt& subspace);
+            vector<RayAlt*>& dest, const MatrixInt& subspace, RunOptions options);
 };
 
 }

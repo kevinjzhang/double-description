@@ -22,14 +22,14 @@ using namespace std;
 // #define LOG_FILENAME                "log.txt"
 // #define MAKEGRAPH                   1
 #define DISPLAYANS
-// #define USESETTRIE
+#define USESETTRIE
 // #define PARALLEL
 
 #define BIT_SIZE                    126
 #define setbits                     bitset<128>
 
 #define TIMING                      1
-#define DEBUG                       1
+// #define DEBUG                       1
 
 //Constants
 const setbits FIRST_BIT (string("0001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001"));
@@ -299,7 +299,7 @@ DoubleDescriptionAlt::RayAlt::RayAlt (RayAlt* ray1, RayAlt* ray2, int hyperPlane
 
 template <typename RayClass>
 void DoubleDescriptionAlt::enumerateExtremalRaysAlt(const MatrixInt& subspace, 
-    const EnumConstraints* constraints) {
+    RunOptions options) {
     unsigned long eqns = subspace.rows();
     unsigned long dim = subspace.columns();
     reduce(subspace);
@@ -352,16 +352,16 @@ void DoubleDescriptionAlt::enumerateExtremalRaysAlt(const MatrixInt& subspace,
 #ifdef DEBUG
     cout << "Iteration:" << i << endl;
 #endif
-    #ifdef TIMING
-        auto itstart = chrono::high_resolution_clock::now();
-    #endif          
-        intersectHyperplaneAlt(i, vertexSets[currentSet], vertexSets[1 - currentSet], subspace);
+#ifdef TIMING
+    auto itstart = chrono::high_resolution_clock::now();
+#endif          
+        intersectHyperplaneAlt(i, vertexSets[currentSet], vertexSets[1 - currentSet], subspace, options);
         currentSet = 1 - currentSet;
-    #ifdef TIMING
-        auto itend = chrono::high_resolution_clock::now();
-        duration = chrono::duration_cast<chrono::microseconds>(itend - itstart);
-        cout << "Iteration " << i << " duration: " << duration.count() << endl;        
-    #endif    
+#ifdef TIMING
+    auto itend = chrono::high_resolution_clock::now();
+    duration = chrono::duration_cast<chrono::microseconds>(itend - itstart);
+    cout << "Iteration " << i << " duration: " << duration.count() << endl;        
+#endif    
     }
 #ifdef TIMING
     auto intersectingHyperplanes = chrono::high_resolution_clock::now();
@@ -413,7 +413,7 @@ bool DoubleDescriptionAlt::isCompatible(RayAlt* ray1, RayAlt* ray2) {
 
 bool DoubleDescriptionAlt::intersectHyperplaneAlt(
     int currentHyperplane, vector<RayAlt*>& src, 
-    vector<RayAlt*>& dest, const MatrixInt& subspace) {
+    vector<RayAlt*>& dest, const MatrixInt& subspace, RunOptions options) {
     vector<RayAlt*> poset;
     vector<RayAlt*> negset;
 
@@ -468,52 +468,58 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
 #ifdef DEBUG
     cout << "Filtering - Poset:" << poset.size() << " Negset:" << negset.size() << " Dest:" << dest.size() << endl;
 #endif 
-
-#ifdef USESETTRIE
-    //Set trie version
-    SetTrie setTrie = SetTrie();
-    for(auto ray : src) {
-        vector<int> set;
-        for (int j = 0; j < subspace.columns(); j++) {
-            if (ray->zeroSet.test(j)) { 
-                set.push_back(j);
-            }   
-        }
-        setTrie.insert(set, reinterpret_cast<intptr_t>(ray));        
-    }
-    auto filter = [&setTrie, &negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
-            for(auto ray2 : negset) {
-                if(isCompatible(ray1, ray2)) {
-                    setbits zeroSet = ray1->zeroSet & ray2->zeroSet;
-                    vector<int> set;
-                    for (int j = 0; j < subspace.columns(); j++) {
-                        if (zeroSet.test(j)) { 
-                            set.push_back(j);
-                        }
-                    }
-                    if(!setTrie.isSubset(set, reinterpret_cast<intptr_t>(ray1), reinterpret_cast<intptr_t>(ray2))) {
+    switch(options.algorithm) {
+        case USE_SIMPLE:
+        {
+            auto filter = [&negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
+                for(auto ray2 : negset) {
+                    if(isCompatible(ray1, ray2) && isAdjacent(src, ray1, ray2)) {
                         dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
-                    } 
+                    }
                 }
-            }
-        };
-#else
-    auto filter = [&negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
-            for(auto ray2 : negset) {
-                if(isCompatible(ray1, ray2) && isAdjacent(src, ray1, ray2)) {
-                    dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
+            };
+            for_each(poset.begin(), poset.end(), filter);
+            break;
+        }
+        case USE_TRIE:
+        {
+            SetTrie setTrie = SetTrie();
+            for(auto ray : src) {
+                vector<int> set;
+                for (int j = 0; j < subspace.columns(); j++) {
+                    if (ray->zeroSet.test(j)) { 
+                        set.push_back(j);
+                    }   
                 }
+                setTrie.insert(set, reinterpret_cast<intptr_t>(ray));        
             }
-        };
-#endif
-
-#ifdef PARALLEL
-    for_each(poset.begin(), poset.end(), filter);
-#else
-    for(auto ray1 : poset) {
-        filter(ray1);
+            auto filter = [&setTrie, &negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
+                for(auto ray2 : negset) {
+                    if(isCompatible(ray1, ray2)) {
+                        setbits zeroSet = ray1->zeroSet & ray2->zeroSet;
+                        vector<int> set;
+                        for (int j = 0; j < subspace.columns(); j++) {
+                            if (zeroSet.test(j)) { 
+                                set.push_back(j);
+                            }
+                        }
+                        if(!setTrie.isSubset(set, reinterpret_cast<intptr_t>(ray1), reinterpret_cast<intptr_t>(ray2))) {
+                            dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
+                        } 
+                    }
+                }
+            };
+            for_each(poset.begin(), poset.end(), filter);
+            break;
+        }
+        case USE_GRAPH:
+            break;
+        case USE_MATRIX:
+            break;
+        case USE_COMBINED:
+            break;          
     }
-#endif
+
     for (auto ray : poset) {
         delete ray;
     }

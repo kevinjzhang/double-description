@@ -1,4 +1,5 @@
 #include <vector>
+#include <type_traits>
 #include <chrono> 
 
 #include "setTrie.h"
@@ -19,37 +20,43 @@
 
 using namespace regina;
 
-int main() {
-    std::vector<Triangulation<3>*> triangulations;
-    // triangulations.push_back(Example<3>::s2xs1());
-    // triangulations.push_back(Example<3>::rp2xs1());
-    // triangulations.push_back(Example<3>::poincareHomologySphere());
-    triangulations.push_back(Example<3>::weeks());
-    // triangulations.push_back(Triangulation<3>::fromIsoSig("jLvMLQQbfefgihhiixiptvvvgof"));
-    // triangulations.push_back(Triangulation<3>::fromIsoSig("sLAvvLLAMLQQQbcbjimnkonlqrnoqqrrxxjjndubihhvnobjgnv"));
-    // triangulations.push_back(Example<3>::weberSeifert());
-    int i = 0;
-    for(auto tri : triangulations) {
-        MatrixInt* subspace = makeMatchingEquations(tri, NS_QUAD);
-        //vector of sets 
-        EnumConstraints* enumConstraints = makeEmbeddedConstraints(tri, NS_QUAD);
+
+int main(int argc, char *argv[]) {
+    std::string inFile = string(argv[1]);
+    std::string outFile = string(argv[2]);
+    ifstream in (inFile, std::ifstream::in);
+    ofstream out;
+    out.open(outFile);
+    int number;
+    in >> number;
+    for(int i = 0; i < number; i++) {
+        std::string name;
+        in >> name;
+        int method;
+        in >> method;
+        Triangulation<3>* triangulation;
+        if (name == "weberSeifert") {
+            triangulation = Example<3>::weberSeifert();
+        } else {
+            triangulation = Triangulation<3>::fromIsoSig(name);
+        }
+        MatrixInt* subspace = makeMatchingEquations(triangulation, NS_QUAD);
+        EnumConstraints* enumConstraints = makeEmbeddedConstraints(triangulation, NS_QUAD);
         auto it = NSVectorQuadOutputIterator();
-        
+        DoubleDescriptionAlt::RunOptions options;
+        options.algorithm = (DoubleDescriptionAlt::Algorithm) (method - 1);
+        //Execute algorithms
         auto start = chrono::high_resolution_clock::now();
-        cout << "Method 1: " << i << endl;
-        // DoubleDescription::enumerateExtremalRays<NSVectorQuad>(it, *subspace, enumConstraints);
+        if (method == 0) {
+            DoubleDescription::enumerateExtremalRays<NSVectorQuad>(it, *subspace, enumConstraints);
+        } else {
+            DoubleDescriptionAlt::enumerateExtremalRaysAlt<NSVectorQuad>(*subspace, options);
+        }
         auto stop = chrono::high_resolution_clock::now();
         auto duration = chrono::duration_cast<chrono::microseconds>(stop - start);
-        cout << duration.count() << endl;
-
-        cout << "Method 2: " << i << endl;
-        start = chrono::high_resolution_clock::now();
-        DoubleDescriptionAlt::enumerateExtremalRaysAlt<NSVectorQuad>(*subspace, enumConstraints);
-        stop = chrono::high_resolution_clock::now();
-        duration = chrono::duration_cast<chrono::microseconds>(stop - start);
-        cout << duration.count() << endl;
-        i++;
+        out << name << ": " << duration.count() << " Method: " << method << std::endl;
     }
+    out.close();
     return 0;
 }
 
