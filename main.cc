@@ -37,6 +37,8 @@ int main(int argc, char *argv[]) {
         Triangulation<3>* triangulation;
         if (name == "weberSeifert") {
             triangulation = Example<3>::weberSeifert();
+        } else if (name == "weeks") {
+            triangulation = Example<3>::weeks();
         } else {
             triangulation = Triangulation<3>::fromIsoSig(name);
         }

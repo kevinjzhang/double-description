@@ -46,16 +46,18 @@ class REGINA_API DoubleDescriptionAlt {
 
         DoubleDescriptionAlt();
 
-        static vector<Ray> reduce(const MatrixInt& subspace);
+        static void reduce(const MatrixInt& subspace, vector<Ray>& reduced);
 
         static bool isCompatible(RayAlt* ray1, RayAlt* ray2);
 
         static bool isAdjacent(vector<RayAlt*>& src, RayAlt* ray1, RayAlt* ray2);
 
+        static bool isAdjacentGraph(unordered_map<RayAlt*, vector<RayAlt*>>& compatibilityGraph, vector<RayAlt*>& src, RayAlt* ray1, RayAlt* ray2);
+
         static bool isAdjacentAlgebraic(vector<Ray>& constraints, RayAlt* ray1, RayAlt* ray2);
 
         static bool intersectHyperplaneAlt(int currentHyperplane, vector<RayAlt*>& src, 
-            vector<RayAlt*>& dest, const MatrixInt& subspace, RunOptions options);
+            vector<RayAlt*>& dest, const MatrixInt& subspace, vector<Ray>& reduced, RunOptions options);
 };
 
 }
