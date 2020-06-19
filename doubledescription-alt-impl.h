@@ -113,6 +113,7 @@ void subtractRow(vector<T>& pivot, vector<T>& row, int startingIndex) {
 }
 
 void printArr(vector<vector<LargeInteger>>& arr, list<pair<int, int>>& ordering) {
+#ifdef DEBUG
     for (auto it = ordering.begin(); it != ordering.end(); it++) {
         vector<LargeInteger>& row = arr[it->second];
         for (auto val : row) {
@@ -120,6 +121,7 @@ void printArr(vector<vector<LargeInteger>>& arr, list<pair<int, int>>& ordering)
         }
         cout << endl;
     }
+#endif
 } 
 
 bool DoubleDescriptionAlt::isAdjacentAlgebraic(const MatrixInt& constraints, RayAlt* ray1, RayAlt* ray2, 
@@ -159,11 +161,8 @@ bool DoubleDescriptionAlt::isAdjacentAlgebraic(const MatrixInt& constraints, Ray
         }
     }
 
-    cout << "Begin" << endl;
-    printArr(subspace, ordering);
     auto currentRow = ordering.begin();
     for (int i = 0; i < indices.size() && currentRow != ordering.end(); i++) {
-        cout << "Column" << i << endl;
         //Move to next column if nothing in the column
         if (subspace[currentRow->second][i] == 0) {
             continue;
@@ -174,7 +173,6 @@ bool DoubleDescriptionAlt::isAdjacentAlgebraic(const MatrixInt& constraints, Ray
         vector<pair<int, int>> batch;
         while (next != ordering.end()) {
             if (subspace[next->second][i] != 0) {
-                cout << "Subtract" << endl;
                 subtractRow(subspace[currentRow->second], subspace[next->second], i);
                 for (int k = i + 1; k < indices.size(); k++) {
                     if (subspace[next->second][k] != 0) {
@@ -194,10 +192,13 @@ bool DoubleDescriptionAlt::isAdjacentAlgebraic(const MatrixInt& constraints, Ray
         sort(batch.begin(), batch.end());
         //Fix ordering
         int batchIndex = 0;
-        for (auto it = currentRow; it != ordering.end() && batchIndex < batch.size(); it++) {
+        auto it = currentRow;
+        while (it != ordering.end() && batchIndex < batch.size()) {
             if (batch[batchIndex].first < it->first) { //Prepend
                 ordering.insert(it, batch[batchIndex]);
                 batchIndex++;
+            } else {
+                it++;
             }
         }
         //Remaining elements
@@ -206,10 +207,7 @@ bool DoubleDescriptionAlt::isAdjacentAlgebraic(const MatrixInt& constraints, Ray
             batchIndex++;
         }
         currentRow++;
-        cout << "Reconstruct" << endl;
-        printArr(subspace, ordering);
     }
-    cout << "Done" << endl;
     return (ordering.size() == indices.size() - 2);
 }
 
@@ -503,7 +501,7 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
     switch(options.algorithm) {
         case USE_SIMPLE:
         {
-            auto filter = [&negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
+            auto filter = [&hyperplaneOrdering, &negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
                 for(auto ray2 : negset) {
                     if(isCompatible(ray1, ray2) && isAdjacent(src, ray1, ray2)) {
                         dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
@@ -573,14 +571,14 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
             myFile << "Iteration: " << currentHyperplane << endl;
             myFile << "Components: " << components.size() << endl;
             for (auto component : components) {
-                for(auto num : component) {
-                    myFile << rayIndex[num] << " ";
+                for(auto ray : component) {
+                    myFile << rayIndex[ray] << " ";
                 }
                 myFile << endl;
             }
             myFile << "Degree: " << endl;
             for (int i = 0; i < src.size(); i++) {
-                myFile << rayIndex[i] << " - " << compatibilityGraph[i].size() << endl;
+                myFile << rayIndex[src[i]] << " - " << src[i]->neighbours.size() << endl;
             }
             myFile.close();
 #endif
