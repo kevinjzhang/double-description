@@ -21,13 +21,13 @@ using namespace std;
 //Bit size is 32 rounded down to multiple of 3
 // #define LOG_FILENAME                "log.txt"
 // #define MAKEGRAPH                   1
-#define DISPLAYANS
+// #define DISPLAYANS
 
 #define BIT_SIZE                    126
 #define setbits                     bitset<128>
 
 // #define TIMING                      1
-#define DEBUG                       1
+// #define DEBUG                       1
 
 //Constants
 const setbits FIRST_BIT (string("0001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001"));
@@ -126,11 +126,13 @@ void printArr(vector<vector<LargeInteger>>& arr, list<pair<int, int>>& ordering)
 
 bool DoubleDescriptionAlt::isAdjacentAlgebraic(const MatrixInt& constraints, RayAlt* ray1, RayAlt* ray2, 
         int currentHyperplane, vector<unsigned long>& hyperplaneOrdering) {
-    unsigned long cols = constraints.columns();
     setbits zeroSet = ray1->zeroSet & ray2->zeroSet;
+    if (currentHyperplane + zeroSet.count() + 2 < constraints.columns()) {
+        return false;
+    }
     vector<uint32_t> indices;
     unordered_set<uint32_t> indexSet;
-    for (int j = 0; j < cols; j++) {
+    for (int j = 0; j < constraints.columns(); j++) {
         if (!zeroSet.test(j)) { 
             indices.push_back(j);
             indexSet.insert(j);
