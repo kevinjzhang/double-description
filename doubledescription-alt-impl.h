@@ -40,13 +40,12 @@ namespace regina {
 //Static graph in optimised version
 //Visited must have space preallocated
 template <typename T>
-void getConnectedComponent(int node, unordered_map<T, vector<T>>& graph, 
-    unordered_map<T, bool>& visited, vector<T>& nodes) {
+void getConnectedComponent(int node, unordered_map<T, bool>& visited, vector<T>& nodes) {
     visited[node] = true;
     nodes.push_back(node);
-    for(auto adj : graph[node]) {
+    for(auto adj : node->neighbours) {
         if(!visited[adj]) {
-            getConnectedComponent(adj, graph, visited, nodes);
+            getConnectedComponent(adj, visited, nodes);
         }
     }
 }
@@ -123,9 +122,9 @@ void printArr(vector<vector<LargeInteger>>& arr, list<pair<int, int>>& ordering)
     }
 } 
 
-bool DoubleDescriptionAlt::isAdjacentAlgebraic(vector<Ray>& constraints, RayAlt* ray1, RayAlt* ray2) {
-    unsigned long rows = constraints.size();
-    unsigned long cols = constraints[0].size();
+bool DoubleDescriptionAlt::isAdjacentAlgebraic(const MatrixInt& constraints, RayAlt* ray1, RayAlt* ray2, 
+        int currentHyperplane, vector<unsigned long>& hyperplaneOrdering) {
+    unsigned long cols = constraints.columns();
     setbits zeroSet = ray1->zeroSet & ray2->zeroSet;
     vector<uint32_t> indices;
     unordered_set<uint32_t> indexSet;
@@ -136,15 +135,15 @@ bool DoubleDescriptionAlt::isAdjacentAlgebraic(vector<Ray>& constraints, RayAlt*
         } 
     }
     //Make a copy of the submatrix
-    vector<vector<LargeInteger>> subspace(rows, vector<LargeInteger>(indices.size()));
-    for (int i = 0; i < rows; i++) {
+    vector<vector<LargeInteger>> subspace(currentHyperplane, vector<LargeInteger>(indices.size()));
+    for (int i = 0; i < currentHyperplane; i++) {
         for (int j = 0; j < indices.size(); j++) {
-            subspace[i][j] = constraints[i][indices[j]];
+            subspace[i][j] = (LargeInteger)constraints.entry(hyperplaneOrdering[i], indices[j]);
         }      
     }
     //Creates a map from first occupied column to rows
     unordered_map<int, vector<int>> sortBuckets;
-    for (int i = 0; i < rows; i++) {
+    for (int i = 0; i < currentHyperplane; i++) {
         for (int j = 0; j < indices.size(); j++) {
             if (subspace[i][j] != 0) {
                 sortBuckets[j].push_back(i);
@@ -159,12 +158,12 @@ bool DoubleDescriptionAlt::isAdjacentAlgebraic(vector<Ray>& constraints, RayAlt*
             ordering.push_back({i, val});
         }
     }
+
     cout << "Begin" << endl;
     printArr(subspace, ordering);
-
     auto currentRow = ordering.begin();
-    for (int i = 0; i < indices.size(); i++) {
-        cout << "Column: " << i << endl;
+    for (int i = 0; i < indices.size() && currentRow != ordering.end(); i++) {
+        cout << "Column" << i << endl;
         //Move to next column if nothing in the column
         if (subspace[currentRow->second][i] == 0) {
             continue;
@@ -174,18 +173,16 @@ bool DoubleDescriptionAlt::isAdjacentAlgebraic(vector<Ray>& constraints, RayAlt*
         next++;
         vector<pair<int, int>> batch;
         while (next != ordering.end()) {
-            for (int r = i; r < subspace[next->second].size(); r++) 
-                cout << subspace[next->second][r] << endl;
             if (subspace[next->second][i] != 0) {
                 cout << "Subtract" << endl;
                 subtractRow(subspace[currentRow->second], subspace[next->second], i);
                 for (int k = i + 1; k < indices.size(); k++) {
                     if (subspace[next->second][k] != 0) {
                         next->first = k;
+                        break;
                     }
-                    break;
                 }
-                //Row is eliminated
+                //Row is kept
                 if (next->first != i) {
                     batch.push_back(*next);
                 } 
@@ -200,6 +197,7 @@ bool DoubleDescriptionAlt::isAdjacentAlgebraic(vector<Ray>& constraints, RayAlt*
         for (auto it = currentRow; it != ordering.end() && batchIndex < batch.size(); it++) {
             if (batch[batchIndex].first < it->first) { //Prepend
                 ordering.insert(it, batch[batchIndex]);
+                batchIndex++;
             }
         }
         //Remaining elements
@@ -208,10 +206,10 @@ bool DoubleDescriptionAlt::isAdjacentAlgebraic(vector<Ray>& constraints, RayAlt*
             batchIndex++;
         }
         currentRow++;
+        cout << "Reconstruct" << endl;
         printArr(subspace, ordering);
     }
-    cout << "End" << endl;
-    printArr(subspace, ordering);
+    cout << "Done" << endl;
     return (ordering.size() == indices.size() - 2);
 }
 
@@ -361,10 +359,6 @@ void DoubleDescriptionAlt::enumerateExtremalRaysAlt(const MatrixInt& subspace,
     RunOptions options) {
     unsigned long eqns = subspace.rows();
     unsigned long dim = subspace.columns();
-    vector<Ray> reduced;
-    if (options.algorithm == USE_MATRIX) {
-        reduce(subspace, reduced);
-    }
 
 #ifdef TIMING
     auto start = chrono::high_resolution_clock::now();
@@ -417,7 +411,7 @@ void DoubleDescriptionAlt::enumerateExtremalRaysAlt(const MatrixInt& subspace,
 #ifdef TIMING
     auto itstart = chrono::high_resolution_clock::now();
 #endif          
-        intersectHyperplaneAlt(i, vertexSets[currentSet], vertexSets[1 - currentSet], subspace, reduced, options);
+        intersectHyperplaneAlt(i, vertexSets[currentSet], vertexSets[1 - currentSet], subspace, ordering, options);
         currentSet = 1 - currentSet;
 #ifdef TIMING
     auto itend = chrono::high_resolution_clock::now();
@@ -460,11 +454,10 @@ bool DoubleDescriptionAlt::isAdjacent(vector<RayAlt*>& src, RayAlt* ray1, RayAlt
     return true;
 }
 
-bool DoubleDescriptionAlt::isAdjacentGraph(unordered_map<RayAlt*, vector<RayAlt*>>& compatibilityGraph, 
-        vector<RayAlt*>& src, RayAlt* ray1, RayAlt* ray2) {
+bool DoubleDescriptionAlt::isAdjacentGraph(vector<RayAlt*>& src, RayAlt* ray1, RayAlt* ray2) {
     setbits pattern = ray1->zeroSet & ray2->zeroSet;
-    RayAlt* ray3 = (compatibilityGraph[ray1].size() < compatibilityGraph[ray2].size()) ? ray1 : ray2;
-    for (auto ray : compatibilityGraph[ray3]) {
+    RayAlt* ray3 = (ray1->neighbours.size() < ray2->neighbours.size()) ? ray1 : ray2;
+    for (auto ray : ray3->neighbours) {
         if(ray == ray1 || ray == ray2) {
             continue;
         }
@@ -490,7 +483,7 @@ bool DoubleDescriptionAlt::isCompatible(RayAlt* ray1, RayAlt* ray2) {
 
 bool DoubleDescriptionAlt::intersectHyperplaneAlt(
     int currentHyperplane, vector<RayAlt*>& src, 
-    vector<RayAlt*>& dest, const MatrixInt& subspace, vector<Ray>& reduced, RunOptions options) {
+    vector<RayAlt*>& dest, const MatrixInt& subspace, vector<unsigned long>& hyperplaneOrdering, RunOptions options) {
     vector<RayAlt*> poset;
     vector<RayAlt*> negset;
     for (auto ray : src) {
@@ -553,12 +546,11 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
         }
         case USE_GRAPH:
         {
-            unordered_map<RayAlt*, vector<RayAlt*>> compatibilityGraph;
             for (int i = 0; i < src.size(); i++) {
                 for (int j = i + 1; j < src.size(); j++) {
                     if (isCompatible(src[i], src[j])) {
-                        compatibilityGraph[src[i]].push_back(src[j]);
-                        compatibilityGraph[src[j]].push_back(src[i]);
+                        src[i]->neighbours.push_back(src[j]);
+                        src[j]->neighbours.push_back(src[i]);
                     }
                 }
             }
@@ -572,7 +564,7 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
             for (int i = 0; i < src.size(); i++) {
                 if (!visited[i]) {
                     vector<RayAlt*> component;
-                    getConnectedComponent(i, compatibilityGraph, visited, component);
+                    getConnectedComponent(i, visited, component);
                     components.push_back(component);
                 }
             }
@@ -592,9 +584,9 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
             }
             myFile.close();
 #endif
-            auto filter = [&compatibilityGraph, &negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
+            auto filter = [&negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
                 for(auto ray2 : negset) {
-                    if(isCompatible(ray1, ray2) && isAdjacentGraph(compatibilityGraph, src, ray1, ray2)) {
+                    if(isCompatible(ray1, ray2) && isAdjacentGraph(src, ray1, ray2)) {
                         dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
                     }
                 }
@@ -604,9 +596,9 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
         }
         case USE_MATRIX:
         {
-            auto filter = [&reduced, &negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
+            auto filter = [&hyperplaneOrdering, &negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
                 for(auto ray2 : negset) {
-                    if(isCompatible(ray1, ray2) && isAdjacentAlgebraic(reduced, ray1, ray2)) {
+                    if(isCompatible(ray1, ray2) && isAdjacentAlgebraic(subspace, ray1, ray2, currentHyperplane, hyperplaneOrdering)) {
                         dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
                     }
                 }
