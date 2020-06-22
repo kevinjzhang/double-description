@@ -27,7 +27,7 @@ using namespace std;
 #define setbits                     bitset<128>
 
 // #define TIMING                      1
-// #define DEBUG                       1
+#define DEBUG                       1
 
 //Constants
 const setbits FIRST_BIT (string("0001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001"));
@@ -66,42 +66,6 @@ Number gcd(Number a, Number b) {
     return b;
 }
 
-void DoubleDescriptionAlt::reduce(const MatrixInt& subspace, vector<Ray>& reduced) {
-    unsigned long rows = subspace.rows();
-    unsigned long cols = subspace.columns();
-    vector<Ray> constraints;
-    for (int i = 0; i < rows; i++) {
-        Ray row(cols);
-        for(int j = 0; j < cols; j++) {
-            row.setElement(j, (LargeInteger)subspace.entry(i,j));
-        }
-        constraints.push_back(row);
-    }
-    //Reduction to diagonal
-    vector<int> rowOrder;
-    unordered_set<int> rowSet;
-    for (int i = 0; i < cols; i++) {
-        int pivot = -1;
-        for (int j = 0; j < rows; j++) {
-            if (!rowSet.count(j) && constraints[j][i] != 0) {
-                if (pivot == -1) {
-                    pivot = j;
-                    rowOrder.push_back(j);
-                    rowSet.insert(j);
-                } else {
-                    Ray tempRay = Ray(constraints[pivot]);
-                    tempRay *= constraints[j][i];
-                    constraints[j] *= constraints[pivot][i];
-                    constraints[j] -= tempRay;
-                }
-            }
-        }              
-    } 
-    for(auto index : rowOrder) {
-        reduced.push_back(constraints[index]);
-    }  
-}
-
 template <typename T>
 void subtractRow(vector<T>& pivot, vector<T>& row, int startingIndex) {
     auto gcdVal = gcd(row[startingIndex], pivot[startingIndex]);
@@ -110,107 +74,6 @@ void subtractRow(vector<T>& pivot, vector<T>& row, int startingIndex) {
     for (int i = startingIndex; i < row.size(); i++) {
         row[i] = row[i] * rowMult - pivot[i] * pivotMult;
     }
-}
-
-void printArr(vector<vector<LargeInteger>>& arr, list<pair<int, int>>& ordering) {
-#ifdef DEBUG
-    for (auto it = ordering.begin(); it != ordering.end(); it++) {
-        vector<LargeInteger>& row = arr[it->second];
-        for (auto val : row) {
-            cout << val << " ";
-        }
-        cout << endl;
-    }
-#endif
-} 
-
-bool DoubleDescriptionAlt::isAdjacentAlgebraic(const MatrixInt& constraints, RayAlt* ray1, RayAlt* ray2, 
-        int currentHyperplane, vector<unsigned long>& hyperplaneOrdering) {
-    setbits zeroSet = ray1->zeroSet & ray2->zeroSet;
-    if (currentHyperplane + zeroSet.count() + 2 < constraints.columns()) {
-        return false;
-    }
-    vector<uint32_t> indices;
-    unordered_set<uint32_t> indexSet;
-    for (int j = 0; j < constraints.columns(); j++) {
-        if (!zeroSet.test(j)) { 
-            indices.push_back(j);
-            indexSet.insert(j);
-        } 
-    }
-    //Make a copy of the submatrix
-    vector<vector<LargeInteger>> subspace(currentHyperplane, vector<LargeInteger>(indices.size()));
-    for (int i = 0; i < currentHyperplane; i++) {
-        for (int j = 0; j < indices.size(); j++) {
-            subspace[i][j] = (LargeInteger)constraints.entry(hyperplaneOrdering[i], indices[j]);
-        }      
-    }
-    //Creates a map from first occupied column to rows
-    unordered_map<int, vector<int>> sortBuckets;
-    for (int i = 0; i < currentHyperplane; i++) {
-        for (int j = 0; j < indices.size(); j++) {
-            if (subspace[i][j] != 0) {
-                sortBuckets[j].push_back(i);
-                break;
-            }
-        }
-    }
-    //Creates an ordering for matrix (ordering[0] is the first row etc.)
-    list<pair<int, int>> ordering;
-    for (int i = 0; i < indices.size(); i++) {
-        for (auto val : sortBuckets[i]) {
-            ordering.push_back({i, val});
-        }
-    }
-
-    auto currentRow = ordering.begin();
-    for (int i = 0; i < indices.size() && currentRow != ordering.end(); i++) {
-        //Move to next column if nothing in the column
-        if (subspace[currentRow->second][i] == 0) {
-            continue;
-        }
-        //End is index of the element 1 after
-        auto next = currentRow;
-        next++;
-        vector<pair<int, int>> batch;
-        while (next != ordering.end()) {
-            if (subspace[next->second][i] != 0) {
-                subtractRow(subspace[currentRow->second], subspace[next->second], i);
-                for (int k = i + 1; k < indices.size(); k++) {
-                    if (subspace[next->second][k] != 0) {
-                        next->first = k;
-                        break;
-                    }
-                }
-                //Row is kept
-                if (next->first != i) {
-                    batch.push_back(*next);
-                } 
-                next = ordering.erase(next);
-            } else {
-                break;
-            }
-        }
-        sort(batch.begin(), batch.end());
-        //Fix ordering
-        int batchIndex = 0;
-        auto it = currentRow;
-        while (it != ordering.end() && batchIndex < batch.size()) {
-            if (batch[batchIndex].first < it->first) { //Prepend
-                ordering.insert(it, batch[batchIndex]);
-                batchIndex++;
-            } else {
-                it++;
-            }
-        }
-        //Remaining elements
-        while (batchIndex < batch.size()) {
-            ordering.push_back(batch[batchIndex]);
-            batchIndex++;
-        }
-        currentRow++;
-    }
-    return (ordering.size() == indices.size() - 2);
 }
 
 template <typename RayClass>
@@ -441,31 +304,148 @@ void DoubleDescriptionAlt::enumerateExtremalRaysAlt(const MatrixInt& subspace,
 #endif
 }
 
-bool DoubleDescriptionAlt::isAdjacent(vector<RayAlt*>& src, RayAlt* ray1, RayAlt* ray2) {
+bool DoubleDescriptionAlt::isAdjacent(const MatrixInt& subspace, SetTrie& setTrie, vector<RayAlt*>& src, RayAlt* ray1, RayAlt* ray2, 
+        int currentHyperplane, vector<unsigned long>& hyperplaneOrdering, RunOptions options) {
+    switch(options.algorithm) {
+        case USE_SIMPLE:
+            return isAdjacentStandard(src, ray1, ray2);
+        case USE_TRIE:
+            return isAdjacentTrie(subspace, setTrie, ray1, ray2);
+        case USE_GRAPH:
+            return isAdjacentGraph(src, ray1, ray2);
+        case USE_MATRIX:
+            return isAdjacentAlgebraic(subspace, ray1, ray2, currentHyperplane, hyperplaneOrdering);
+        default :
+            return false;          
+    }    
+}
+
+
+bool DoubleDescriptionAlt::isAdjacentStandard(vector<RayAlt*>& src, RayAlt* ray1, RayAlt* ray2) {
     setbits pattern = ray1->zeroSet & ray2->zeroSet;
     for (RayAlt* ray : src) {
-        if(ray == ray1 || ray == ray2) {
-            continue;
-        }
         if ((pattern & ray->zeroSet) == pattern) {
+            if(ray == ray1 || ray == ray2) {
+                continue;
+            }
             return false;
         }
     }
     return true;
 }
 
+bool DoubleDescriptionAlt::isAdjacentTrie(const MatrixInt& subspace, SetTrie& setTrie, RayAlt* ray1, RayAlt* ray2) {
+    setbits zeroSet = ray1->zeroSet & ray2->zeroSet;
+    vector<int> set;
+    for (int j = 0; j < subspace.columns(); j++) {
+        if (zeroSet.test(j)) { 
+            set.push_back(j);
+        }
+    }
+    return !setTrie.isSubset(set, reinterpret_cast<intptr_t>(ray1), reinterpret_cast<intptr_t>(ray2));
+}
+
 bool DoubleDescriptionAlt::isAdjacentGraph(vector<RayAlt*>& src, RayAlt* ray1, RayAlt* ray2) {
     setbits pattern = ray1->zeroSet & ray2->zeroSet;
     RayAlt* ray3 = (ray1->neighbours.size() < ray2->neighbours.size()) ? ray1 : ray2;
     for (auto ray : ray3->neighbours) {
-        if(ray == ray1 || ray == ray2) {
-            continue;
-        }
         if ((pattern & ray->zeroSet) == pattern) {
+            if(ray == ray1 || ray == ray2) {
+                continue;
+            }
             return false;
         }
     }
     return true;
+}
+
+bool DoubleDescriptionAlt::isAdjacentAlgebraic(const MatrixInt& constraints, RayAlt* ray1, RayAlt* ray2, 
+        int currentHyperplane, vector<unsigned long>& hyperplaneOrdering) {
+    setbits zeroSet = ray1->zeroSet & ray2->zeroSet;
+    if (currentHyperplane + zeroSet.count() + 2 < constraints.columns()) {
+        return false;
+    }
+    vector<uint32_t> indices;
+    unordered_set<uint32_t> indexSet;
+    for (int j = 0; j < constraints.columns(); j++) {
+        if (!zeroSet.test(j)) { 
+            indices.push_back(j);
+            indexSet.insert(j);
+        } 
+    }
+    //Make a copy of the submatrix
+    vector<vector<LargeInteger>> subspace(currentHyperplane, vector<LargeInteger>(indices.size()));
+    for (int i = 0; i < currentHyperplane; i++) {
+        for (int j = 0; j < indices.size(); j++) {
+            subspace[i][j] = (LargeInteger)constraints.entry(hyperplaneOrdering[i], indices[j]);
+        }      
+    }
+    //Creates a map from first occupied column to rows
+    unordered_map<int, vector<int>> sortBuckets;
+    for (int i = 0; i < currentHyperplane; i++) {
+        for (int j = 0; j < indices.size(); j++) {
+            if (subspace[i][j] != 0) {
+                sortBuckets[j].push_back(i);
+                break;
+            }
+        }
+    }
+    //Creates an ordering for matrix (ordering[0] is the first row etc.)
+    list<pair<int, int>> ordering;
+    for (int i = 0; i < indices.size(); i++) {
+        for (auto val : sortBuckets[i]) {
+            ordering.push_back({i, val});
+        }
+    }
+
+    auto currentRow = ordering.begin();
+    for (int i = 0; i < indices.size() && currentRow != ordering.end(); i++) {
+        //Move to next column if nothing in the column
+        if (subspace[currentRow->second][i] == 0) {
+            continue;
+        }
+        //End is index of the element 1 after
+        auto next = currentRow;
+        next++;
+        vector<pair<int, int>> batch;
+        while (next != ordering.end()) {
+            if (subspace[next->second][i] != 0) {
+                subtractRow(subspace[currentRow->second], subspace[next->second], i);
+                for (int k = i + 1; k < indices.size(); k++) {
+                    if (subspace[next->second][k] != 0) {
+                        next->first = k;
+                        break;
+                    }
+                }
+                //Row is kept
+                if (next->first != i) {
+                    batch.push_back(*next);
+                } 
+                next = ordering.erase(next);
+            } else {
+                break;
+            }
+        }
+        sort(batch.begin(), batch.end());
+        //Fix ordering
+        int batchIndex = 0;
+        auto it = currentRow;
+        while (it != ordering.end() && batchIndex < batch.size()) {
+            if (batch[batchIndex].first < it->first) { //Prepend
+                ordering.insert(it, batch[batchIndex]);
+                batchIndex++;
+            } else {
+                it++;
+            }
+        }
+        //Remaining elements
+        while (batchIndex < batch.size()) {
+            ordering.push_back(batch[batchIndex]);
+            batchIndex++;
+        }
+        currentRow++;
+    }
+    return (ordering.size() == indices.size() - 2);
 }
 
 bool DoubleDescriptionAlt::isCompatible(RayAlt* ray1, RayAlt* ray2) {
@@ -500,60 +480,30 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
 #ifdef DEBUG
     cout << "Filtering - Poset:" << poset.size() << " Negset:" << negset.size() << " Dest:" << dest.size() << endl;
 #endif 
-    switch(options.algorithm) {
-        case USE_SIMPLE:
-        {
-            auto filter = [&hyperplaneOrdering, &negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
-                for(auto ray2 : negset) {
-                    if(isCompatible(ray1, ray2) && isAdjacent(src, ray1, ray2)) {
-                        dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
-                    }
-                }
-            };
-            for_each(poset.begin(), poset.end(), filter);
-            break;
-        }
-        case USE_TRIE:
-        {
-            SetTrie setTrie = SetTrie();
-            for(auto ray : src) {
-                vector<int> set;
-                for (int j = 0; j < subspace.columns(); j++) {
-                    if (ray->zeroSet.test(j)) { 
-                        set.push_back(j);
-                    }   
-                }
-                setTrie.insert(set, reinterpret_cast<intptr_t>(ray));        
+    //Set up setTrie if needed
+    SetTrie setTrie = SetTrie();
+    if (options.algorithm == USE_TRIE) {
+        for(auto ray : src) {
+            vector<int> set;
+            for (int j = 0; j < subspace.columns(); j++) {
+                if (ray->zeroSet.test(j)) { 
+                    set.push_back(j);
+                }   
             }
-            auto filter = [&setTrie, &negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
-                for(auto ray2 : negset) {
-                    if(isCompatible(ray1, ray2)) {
-                        setbits zeroSet = ray1->zeroSet & ray2->zeroSet;
-                        vector<int> set;
-                        for (int j = 0; j < subspace.columns(); j++) {
-                            if (zeroSet.test(j)) { 
-                                set.push_back(j);
-                            }
-                        }
-                        if(!setTrie.isSubset(set, reinterpret_cast<intptr_t>(ray1), reinterpret_cast<intptr_t>(ray2))) {
-                            dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
-                        } 
-                    }
-                }
-            };
-            for_each(poset.begin(), poset.end(), filter);
-            break;
+            setTrie.insert(set, reinterpret_cast<intptr_t>(ray));        
         }
-        case USE_GRAPH:
-        {
-            for (int i = 0; i < src.size(); i++) {
-                for (int j = i + 1; j < src.size(); j++) {
-                    if (isCompatible(src[i], src[j])) {
-                        src[i]->neighbours.push_back(src[j]);
-                        src[j]->neighbours.push_back(src[i]);
-                    }
+    }
+    //Set up graph if needed
+    if (options.algorithm == USE_GRAPH) {
+        for (int i = 0; i < src.size(); i++) {
+            for (int j = i + 1; j < src.size(); j++) {
+                if (isCompatible(src[i], src[j])) {
+                    src[i]->neighbours.push_back(src[j]);
+                    src[j]->neighbours.push_back(src[i]);
                 }
             }
+        }
+    }
 #ifdef MAKEGRAPH
             unordered_map<RayAlt*, int> rayIndex;
             unordered_map<RayAlt*, bool> visited;
@@ -583,31 +533,36 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
                 myFile << rayIndex[src[i]] << " - " << src[i]->neighbours.size() << endl;
             }
             myFile.close();
-#endif
-            auto filter = [&negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
-                for(auto ray2 : negset) {
-                    if(isCompatible(ray1, ray2) && isAdjacentGraph(src, ray1, ray2)) {
-                        dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
-                    }
+#endif        
+    if (options.algorithm != TEST_ALL) {
+        auto filter = [&options, &setTrie, &hyperplaneOrdering, &negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
+            for(auto ray2 : negset) {
+                if(isCompatible(ray1, ray2) && isAdjacent(subspace, setTrie, src, ray1, ray2, currentHyperplane, hyperplaneOrdering, options)) {
+                    dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
                 }
-            };
-            for_each(poset.begin(), poset.end(), filter);
-            break;
-        }
-        case USE_MATRIX:
-        {
-            auto filter = [&hyperplaneOrdering, &negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
+            }
+        };
+        for_each(poset.begin(), poset.end(), filter);
+    } else {
+        for (int i = 0; i < 4; i++) {
+            options.algorithm = (Algorithm) i;
+            vector<RayAlt*> temp;
+            auto start = chrono::high_resolution_clock::now();
+            for (auto ray1 : poset) {
                 for(auto ray2 : negset) {
-                    if(isCompatible(ray1, ray2) && isAdjacentAlgebraic(subspace, ray1, ray2, currentHyperplane, hyperplaneOrdering)) {
-                        dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
+                    if(isCompatible(ray1, ray2) && isAdjacent(subspace, setTrie, src, ray1, ray2, currentHyperplane, hyperplaneOrdering, options)) {
+                        if (i == 0) {
+                            dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
+                        } else {
+                            temp.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
+                        }
                     }
-                }
-            };
-            for_each(poset.begin(), poset.end(), filter);
-            break;
+                }            
+            }
+            auto stop = chrono::high_resolution_clock::now();
+            auto duration = chrono::duration_cast<chrono::microseconds>(stop - start);
+            cout << "Method " << i << ": " << duration.count() << endl;
         }
-        case USE_COMBINED:
-            break;          
     }
 
     for (auto ray : poset) {
