@@ -482,7 +482,8 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
 #endif 
     //Set up setTrie if needed
     SetTrie setTrie = SetTrie();
-    if (options.algorithm == USE_TRIE) {
+    if (options.algorithm == USE_TRIE || options.algorithm == TEST_ALL) {
+        auto start = chrono::high_resolution_clock::now();
         for(auto ray : src) {
             vector<int> set;
             for (int j = 0; j < subspace.columns(); j++) {
@@ -492,9 +493,15 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
             }
             setTrie.insert(set, reinterpret_cast<intptr_t>(ray));        
         }
+        auto stop = chrono::high_resolution_clock::now();
+        auto duration = chrono::duration_cast<chrono::microseconds>(stop - start);
+        if (options.algorithm == TEST_ALL) {
+            cout << "Trie Setup: " << duration.count() << endl;
+        }
     }
     //Set up graph if needed
-    if (options.algorithm == USE_GRAPH) {
+    if (options.algorithm == USE_GRAPH || options.algorithm == TEST_ALL) {
+        auto start = chrono::high_resolution_clock::now();
         for (int i = 0; i < src.size(); i++) {
             for (int j = i + 1; j < src.size(); j++) {
                 if (isCompatible(src[i], src[j])) {
@@ -502,6 +509,11 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
                     src[j]->neighbours.push_back(src[i]);
                 }
             }
+        }
+        auto stop = chrono::high_resolution_clock::now();
+        auto duration = chrono::duration_cast<chrono::microseconds>(stop - start);
+        if (options.algorithm == TEST_ALL) {
+            cout << "Graph Setup: " << duration.count() << endl;
         }
     }
 #ifdef MAKEGRAPH
@@ -551,17 +563,22 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
             for (auto ray1 : poset) {
                 for(auto ray2 : negset) {
                     if(isCompatible(ray1, ray2) && isAdjacent(subspace, setTrie, src, ray1, ray2, currentHyperplane, hyperplaneOrdering, options)) {
-                        if (i == 0) {
-                            dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
-                        } else {
-                            temp.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
-                        }
+                        temp.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
                     }
                 }            
             }
             auto stop = chrono::high_resolution_clock::now();
             auto duration = chrono::duration_cast<chrono::microseconds>(stop - start);
             cout << "Method " << i << ": " << duration.count() << endl;
+        }
+        //Appending to real answer
+        options.algorithm = USE_MATRIX;
+        for (auto ray1 : poset) {
+            for(auto ray2 : negset) {
+                if(isCompatible(ray1, ray2) && isAdjacent(subspace, setTrie, src, ray1, ray2, currentHyperplane, hyperplaneOrdering, options)) {
+                    dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
+                }
+            }            
         }
     }
 
