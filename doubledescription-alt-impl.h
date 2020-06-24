@@ -26,8 +26,7 @@ using namespace std;
 #define BIT_SIZE                    126
 #define setbits                     bitset<128>
 
-// #define TIMING                      1
-#define DEBUG                       1
+// #define DEBUG                       1
 
 //Constants
 const setbits FIRST_BIT (string("0001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001"));
@@ -222,10 +221,6 @@ void DoubleDescriptionAlt::enumerateExtremalRaysAlt(const MatrixInt& subspace,
     RunOptions options) {
     unsigned long eqns = subspace.rows();
     unsigned long dim = subspace.columns();
-
-#ifdef TIMING
-    auto start = chrono::high_resolution_clock::now();
-#endif
     vector<unsigned long> ordering(eqns);
     for(int i = 0; i < eqns; i++) {
         ordering[i] = i;
@@ -235,11 +230,6 @@ void DoubleDescriptionAlt::enumerateExtremalRaysAlt(const MatrixInt& subspace,
     cout << "Sorting hyperplanes" << endl;
 #endif
     sort(ordering.begin(), ordering.end(), LexicographicalOrder(subspace));
-#ifdef TIMING
-    auto sorting = chrono::high_resolution_clock::now();
-    auto duration = chrono::duration_cast<chrono::microseconds>(sorting - start);
-    cout << "Ordering: " << duration.count() << endl;
-#endif
     //Initialise vertex set
 #ifdef DEBUG
     cout << "Initialising Vertex Set" << endl;
@@ -248,45 +238,19 @@ void DoubleDescriptionAlt::enumerateExtremalRaysAlt(const MatrixInt& subspace,
     for(int i = 0; i < dim; i++) {
         vertexSets[0].push_back(new RayAlt(i, subspace, ordering));
     }
-#ifdef TIMING
-    auto initialisation = chrono::high_resolution_clock::now();
-    duration = chrono::duration_cast<chrono::microseconds>(initialisation - sorting);
-    cout << "Initialisation: " << duration.count() << endl;
-#endif
-
     //Intersect hyperplanes
 #ifdef DEBUG
     cout << "Intersecting hyperplanes" << endl;
 #endif    
-
-#ifdef MAKEGRAPH
-    //Clear log file
-    ofstream myFile;
-    myFile.open(LOG_FILENAME, ios::trunc);
-    myFile.close();
-#endif
-
     int currentSet = 0;
     for(int i = 0; i < eqns; i++) {
 #ifdef DEBUG
     cout << "Iteration:" << i << endl;
-#endif
-#ifdef TIMING
-    auto itstart = chrono::high_resolution_clock::now();
-#endif          
+#endif        
         intersectHyperplaneAlt(i, vertexSets[currentSet], vertexSets[1 - currentSet], subspace, ordering, options);
         currentSet = 1 - currentSet;
-#ifdef TIMING
-    auto itend = chrono::high_resolution_clock::now();
-    duration = chrono::duration_cast<chrono::microseconds>(itend - itstart);
-    cout << "Iteration " << i << " duration: " << duration.count() << endl;        
-#endif    
     }
-#ifdef TIMING
-    auto intersectingHyperplanes = chrono::high_resolution_clock::now();
-    duration = chrono::duration_cast<chrono::microseconds>(intersectingHyperplanes - initialisation);
-    cout << "Intersecting Hyperplanes: " << duration.count() << endl;
-#endif
+
 
 #ifdef DEBUG
     cout << "Results: " << vertexSets[currentSet].size() << endl;
@@ -297,15 +261,15 @@ void DoubleDescriptionAlt::enumerateExtremalRaysAlt(const MatrixInt& subspace,
         ray->recover(result, subspace);
         delete ray;
     }
-#ifdef TIMING
-    auto recovery = chrono::high_resolution_clock::now();
-    duration = chrono::duration_cast<chrono::microseconds>(recovery - intersectingHyperplanes);
-    cout << "Recovery: " << duration.count() << endl;
-#endif
 }
 
 bool DoubleDescriptionAlt::isAdjacent(const MatrixInt& subspace, SetTrie& setTrie, vector<RayAlt*>& src, RayAlt* ray1, RayAlt* ray2, 
         int currentHyperplane, vector<unsigned long>& hyperplaneOrdering, RunOptions options) {
+    //Quick check for algebraic adjacency (optional)
+    setbits zeroSet = ray1->zeroSet & ray2->zeroSet;
+    if (currentHyperplane + zeroSet.count() + 2 < subspace.columns()) {
+        return false;
+    }
     switch(options.algorithm) {
         case USE_SIMPLE:
             return isAdjacentStandard(src, ray1, ray2);
@@ -342,7 +306,7 @@ bool DoubleDescriptionAlt::isAdjacentTrie(const MatrixInt& subspace, SetTrie& se
             set.push_back(j);
         }
     }
-    return !setTrie.isSubset(set, reinterpret_cast<intptr_t>(ray1), reinterpret_cast<intptr_t>(ray2));
+    return !setTrie.isSubsetDFS(set, reinterpret_cast<intptr_t>(ray1), reinterpret_cast<intptr_t>(ray2));
 }
 
 bool DoubleDescriptionAlt::isAdjacentGraph(vector<RayAlt*>& src, RayAlt* ray1, RayAlt* ray2) {
@@ -362,9 +326,6 @@ bool DoubleDescriptionAlt::isAdjacentGraph(vector<RayAlt*>& src, RayAlt* ray1, R
 bool DoubleDescriptionAlt::isAdjacentAlgebraic(const MatrixInt& constraints, RayAlt* ray1, RayAlt* ray2, 
         int currentHyperplane, vector<unsigned long>& hyperplaneOrdering) {
     setbits zeroSet = ray1->zeroSet & ray2->zeroSet;
-    if (currentHyperplane + zeroSet.count() + 2 < constraints.columns()) {
-        return false;
-    }
     vector<uint32_t> indices;
     unordered_set<uint32_t> indexSet;
     for (int j = 0; j < constraints.columns(); j++) {
@@ -496,7 +457,7 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
         auto stop = chrono::high_resolution_clock::now();
         auto duration = chrono::duration_cast<chrono::microseconds>(stop - start);
         if (options.algorithm == TEST_ALL) {
-            cout << "Trie Setup: " << duration.count() << endl;
+            cout << "Trie: " << duration.count() << endl;
         }
     }
     //Set up graph if needed
@@ -513,7 +474,7 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
         auto stop = chrono::high_resolution_clock::now();
         auto duration = chrono::duration_cast<chrono::microseconds>(stop - start);
         if (options.algorithm == TEST_ALL) {
-            cout << "Graph Setup: " << duration.count() << endl;
+            cout << "Graph: " << duration.count() << endl;
         }
     }
 #ifdef MAKEGRAPH
@@ -556,6 +517,7 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
         };
         for_each(poset.begin(), poset.end(), filter);
     } else {
+        cout << poset.size() << " " << negset.size() << " " << src.size() << endl;
         for (int i = 0; i < 4; i++) {
             options.algorithm = (Algorithm) i;
             vector<RayAlt*> temp;
@@ -569,16 +531,22 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
             }
             auto stop = chrono::high_resolution_clock::now();
             auto duration = chrono::duration_cast<chrono::microseconds>(stop - start);
-            cout << "Method " << i << ": " << duration.count() << endl;
+            cout << i << " " << duration.count() << endl;
         }
         //Appending to real answer
-        options.algorithm = USE_MATRIX;
+        options.algorithm = USE_TRIE;
         for (auto ray1 : poset) {
             for(auto ray2 : negset) {
                 if(isCompatible(ray1, ray2) && isAdjacent(subspace, setTrie, src, ray1, ray2, currentHyperplane, hyperplaneOrdering, options)) {
                     dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
                 }
             }            
+        }
+    }
+
+    if (options.algorithm == USE_GRAPH || options.algorithm == TEST_ALL) {
+        for (auto ray : dest) {
+            ray->neighbours.clear();
         }
     }
 
