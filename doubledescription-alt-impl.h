@@ -16,15 +16,17 @@
 #include <maths/ray.h>
 
 #include "setTrie.h"
+#include "rayTrie.h"
 
 using namespace std;
 //Bit size is 32 rounded down to multiple of 3
 // #define LOG_FILENAME                "log.txt"
 // #define MAKEGRAPH                   1
 // #define DISPLAYANS
+#define USE_RAYTRIE
 
 #define BIT_SIZE                    126
-#define setbits                     bitset<128>
+#define setbits                     std::bitset<128>
 
 // #define DEBUG                       1
 
@@ -461,8 +463,22 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
         }
     }
     //Set up graph if needed
+    
     if (options.algorithm == USE_GRAPH || options.algorithm == TEST_ALL) {
         auto start = chrono::high_resolution_clock::now();
+#ifdef USE_RAYTRIE
+        //RayTrie method
+        RayTrie rayTrie = RayTrie(subspace.columns() / 3);
+        for (auto ray : src) {
+            rayTrie.insert(ray->zeroSet, reinterpret_cast<intptr_t>(ray));
+        }
+        for (auto ray : src) {
+            auto adj = rayTrie.findAll(ray->zeroSet, reinterpret_cast<intptr_t>(ray)); //This is empty
+            for (intptr_t pointer : adj) {
+                ray->neighbours.push_back((RayAlt*) pointer);
+            }
+        }
+#else
         for (int i = 0; i < src.size(); i++) {
             for (int j = i + 1; j < src.size(); j++) {
                 if (isCompatible(src[i], src[j])) {
@@ -471,6 +487,7 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
                 }
             }
         }
+#endif
         auto stop = chrono::high_resolution_clock::now();
         auto duration = chrono::duration_cast<chrono::microseconds>(stop - start);
         if (options.algorithm == TEST_ALL) {

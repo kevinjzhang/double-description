@@ -12,7 +12,7 @@
 #include <maths/rational.h>
 
 using namespace std;
-#define setbits                     bitset<128>
+#define setbits                     std::bitset<128>
 
 namespace regina {
 
