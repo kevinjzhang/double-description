@@ -7,22 +7,23 @@
 #include <climits>
 #include <set>
 #include <bitset>
-#include <queue>
 #include <algorithm>
 #include <utility>
+#include "doubledescription-alt.h"
 
 #define setbits                     std::bitset<128>
-#define ROOT                -1
+#define ROOT                        -1
+
+namespace regina {
 
 class RayTrie {
     public:
         RayTrie(int size) {
             this->size = size;
-            root = new Node();
+            this->root = new Node();
         }
 
-        std::vector<intptr_t> findAll(setbits zeroSet, intptr_t self) {
-            std::vector<intptr_t> nodes;
+        void findAll(setbits zeroSet, DoubleDescriptionAlt::RayAlt* self) {
             std::vector<Node*> stack;
             std::unordered_map<int, int> levelToType;
             for (int i = 0; i < size; i++) { 
@@ -36,8 +37,8 @@ class RayTrie {
             while(!stack.empty()) {
                 Node* node = stack.back();
                 stack.pop_back();
-                if (node->uid != 0 && node->uid != self) {
-                    nodes.push_back(node->uid);
+                if (node->uid != nullptr && node->uid != self) {
+                    self->neighbours.push_back(node->uid);
                 }
                 for (auto neighbour : node->neighbours) {
                     if (levelToType[neighbour->level] == 0 || levelToType[neighbour->level] == neighbour->type) {
@@ -45,10 +46,9 @@ class RayTrie {
                     }
                 }
             }
-            return nodes;
         }
 
-        void insert(setbits zeroSet, intptr_t uid) {
+        void insert(setbits zeroSet, DoubleDescriptionAlt::RayAlt* uid) {
             Node* current = root;
             for (int i = 0; i < size; i++) { //i = level
                 for (int j = 0; j < 3; j++) { //j = type
@@ -79,15 +79,16 @@ class RayTrie {
         struct Node {
             int level; //The corresponding level 
             int type; //1, 2 or 3
-            intptr_t uid; //uid = 0 if not end
+            DoubleDescriptionAlt::RayAlt* uid; //uid = 0 if not end
             std::vector<Node*> neighbours;
             Node () {
                 this->level = ROOT;
-                uid = 0;
+                uid = nullptr;
             }
         };
         Node* root;
         int size;
 };
 
+}
 #endif

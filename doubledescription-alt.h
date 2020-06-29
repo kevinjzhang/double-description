@@ -29,13 +29,13 @@ class REGINA_API DoubleDescriptionAlt {
 
         template <typename RayClass>
         static void enumerateExtremalRaysAlt(const MatrixInt& subspace, RunOptions options);
+        friend class RayTrie;
     private:
         class RayAlt : public Ray {
             public:
                 unsigned long timeAlive;
                 setbits zeroSet; 
                 vector<RayAlt*> neighbours;
-
                 RayAlt (int unitIndex, const MatrixInt& subspace, vector<unsigned long>& ordering);
                 RayAlt (RayAlt* ray1, RayAlt* ray2, int hyperPlane, const MatrixInt& subspace);
 

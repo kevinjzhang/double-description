@@ -470,13 +470,10 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
         //RayTrie method
         RayTrie rayTrie = RayTrie(subspace.columns() / 3);
         for (auto ray : src) {
-            rayTrie.insert(ray->zeroSet, reinterpret_cast<intptr_t>(ray));
+            rayTrie.insert(ray->zeroSet, ray);
         }
         for (auto ray : src) {
-            auto adj = rayTrie.findAll(ray->zeroSet, reinterpret_cast<intptr_t>(ray)); //This is empty
-            for (intptr_t pointer : adj) {
-                ray->neighbours.push_back((RayAlt*) pointer);
-            }
+            rayTrie.findAll(ray->zeroSet, ray); //This is empty
         }
 #else
         for (int i = 0; i < src.size(); i++) {
