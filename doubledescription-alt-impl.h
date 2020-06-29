@@ -28,7 +28,7 @@ using namespace std;
 #define BIT_SIZE                    126
 #define setbits                     std::bitset<128>
 
-// #define DEBUG                       1
+//#define DEBUG                       1
 
 //Constants
 const setbits FIRST_BIT (string("0001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001"));
@@ -470,10 +470,11 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
         //RayTrie method
         RayTrie rayTrie = RayTrie(subspace.columns() / 3);
         for (auto ray : src) {
-            rayTrie.insert(ray->zeroSet, ray);
+            rayTrie.insert(ray);
         }
         for (auto ray : src) {
-            rayTrie.findAll(ray->zeroSet, ray); //This is empty
+            rayTrie.findAll(ray); //This is empty
+            rayTrie.deleteRay(ray);
         }
 #else
         for (int i = 0; i < src.size(); i++) {
