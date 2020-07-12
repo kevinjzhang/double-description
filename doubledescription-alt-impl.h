@@ -14,6 +14,7 @@
 #include <regina-config.h>
 #include <maths/integer.h>
 #include <maths/ray.h>
+#include <mutex>
 
 #include "setTrie.h"
 #include "rayTrie.h"
@@ -28,7 +29,7 @@ using namespace std;
 #define BIT_SIZE                    126
 #define setbits                     std::bitset<128>
 
-//#define DEBUG                       1
+// #define DEBUG                       1
 
 //Constants
 const setbits FIRST_BIT (string("0001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001001"));
@@ -521,41 +522,46 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
                 myFile << rayIndex[src[i]] << " - " << src[i]->neighbours.size() << endl;
             }
             myFile.close();
-#endif        
+#endif    
+    mutex destMutex;    
     if (options.algorithm != TEST_ALL) {
-        auto filter = [&options, &setTrie, &hyperplaneOrdering, &negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
+        auto filter = [&destMutex, &options, &setTrie, &hyperplaneOrdering, &negset, &currentHyperplane, &subspace, &src, &dest](RayAlt* ray1) {
             for(auto ray2 : negset) {
                 if(isCompatible(ray1, ray2) && isAdjacent(subspace, setTrie, src, ray1, ray2, currentHyperplane, hyperplaneOrdering, options)) {
+                    destMutex.lock();
                     dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
+                    destMutex.unlock();
                 }
             }
         };
-        for_each(poset.begin(), poset.end(), filter);
+        #pragma omp parallel for
+        for (int k = 0; k < poset.size(); k++) {
+            filter(poset[k]);
+        }
     } else {
         cout << poset.size() << " " << negset.size() << " " << src.size() << endl;
         for (int i = 0; i < 4; i++) {
             options.algorithm = (Algorithm) i;
             vector<RayAlt*> temp;
             auto start = chrono::high_resolution_clock::now();
-            for (auto ray1 : poset) {
+            #pragma omp parallel for
+            for (int k = 0; k < poset.size(); k++) {
+                auto ray1 = poset[k];
                 for(auto ray2 : negset) {
                     if(isCompatible(ray1, ray2) && isAdjacent(subspace, setTrie, src, ray1, ray2, currentHyperplane, hyperplaneOrdering, options)) {
-                        temp.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
+                        destMutex.lock();
+                        if (options.algorithm == USE_TRIE) {
+                            dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
+                        } else {
+                            temp.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
+                        }
+                        destMutex.unlock();
                     }
-                }            
+                }        
             }
             auto stop = chrono::high_resolution_clock::now();
             auto duration = chrono::duration_cast<chrono::microseconds>(stop - start);
             cout << i << " " << duration.count() << endl;
-        }
-        //Appending to real answer
-        options.algorithm = USE_TRIE;
-        for (auto ray1 : poset) {
-            for(auto ray2 : negset) {
-                if(isCompatible(ray1, ray2) && isAdjacent(subspace, setTrie, src, ray1, ray2, currentHyperplane, hyperplaneOrdering, options)) {
-                    dest.push_back(new RayAlt(ray1, ray2, currentHyperplane, subspace));
-                }
-            }            
         }
     }
 
