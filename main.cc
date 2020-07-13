@@ -10,6 +10,7 @@
 #include<surfaces/normalsurfaces.h>
 #include<surfaces/normalcoords.h>
 #include<surfaces/nsvectorquad.h>
+#include<link/link.h>
 
 #include <maths/ray.h>
 #include "outputIterator.h"
@@ -32,24 +33,37 @@ int main(int argc, char *argv[]) {
     for(int i = 0; i < number; i++) {
         std::string name;
         in >> name;
-        int method;
+        int method; //Method >= 7 tells the program that a link signature is used instead
         in >> method;
         Triangulation<3>* triangulation;
-        if (name == "weberSeifert") {
-            triangulation = Example<3>::weberSeifert();
-        } else if (name == "weeks") {
-            triangulation = Example<3>::weeks();
+        DoubleDescriptionAlt::RunOptions options;
+        if (method <= 6) {
+            options.algorithm = (DoubleDescriptionAlt::Algorithm) (method - 1);
+            if (name == "weberSeifert") {
+                triangulation = Example<3>::weberSeifert();
+            } else if (name == "weeks") {
+                triangulation = Example<3>::weeks();
+            } else {
+                triangulation = Triangulation<3>::fromIsoSig(name);
+            }
         } else {
-            triangulation = Triangulation<3>::fromIsoSig(name);
+            options.algorithm = (DoubleDescriptionAlt::Algorithm) (method - 8);
+            Link* link = Link::fromKnotSig(name);
+            triangulation = link->complement();
+            if (triangulation->isIdeal()) {
+                triangulation->idealToFinite();
+                if (!triangulation->intelligentSimplify()) {
+                    triangulation->simplifyExhaustive();
+                }
+                cout << "Boundary:" << triangulation->countBoundaryComponents() << endl;
+            }
         }
         MatrixInt* subspace = makeMatchingEquations(triangulation, NS_QUAD);
         EnumConstraints* enumConstraints = makeEmbeddedConstraints(triangulation, NS_QUAD);
         auto it = NSVectorQuadOutputIterator();
-        DoubleDescriptionAlt::RunOptions options;
-        options.algorithm = (DoubleDescriptionAlt::Algorithm) (method - 1);
         //Execute algorithms
         auto start = chrono::high_resolution_clock::now();
-        if (method == 0) {
+        if (method == 0 || method == 7) { 
             DoubleDescription::enumerateExtremalRays<NSVectorQuad>(it, *subspace, enumConstraints);
         } else {
             DoubleDescriptionAlt::enumerateExtremalRaysAlt<NSVectorQuad>(*subspace, options);

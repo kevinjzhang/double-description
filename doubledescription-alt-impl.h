@@ -230,6 +230,7 @@ void DoubleDescriptionAlt::enumerateExtremalRaysAlt(const MatrixInt& subspace,
     }
     //Gives hyperplane ordering
 #ifdef DEBUG
+    cout << "Dimension: " << dim << endl;
     cout << "Sorting hyperplanes" << endl;
 #endif
     sort(ordering.begin(), ordering.end(), LexicographicalOrder(subspace));
@@ -464,20 +465,21 @@ bool DoubleDescriptionAlt::intersectHyperplaneAlt(
         }
     }
     //Set up graph if needed
-    
     if (options.algorithm == USE_GRAPH || options.algorithm == TEST_ALL) {
         auto start = chrono::high_resolution_clock::now();
 #ifdef USE_RAYTRIE
         //RayTrie method
         RayTrie rayTrie = RayTrie(subspace.columns() / 3);
-        for (auto ray : src) {
-            rayTrie.insert(ray);
+        for (int i = 0; i < src.size(); i++) {
+            rayTrie.insert(src[i]);
         }
-        for (auto ray : src) {
-            rayTrie.findAll(ray); //This is empty
-            rayTrie.deleteRay(ray);
+
+        #pragma omp parallel for
+        for (int i = 0; i < src.size(); i++) {
+            rayTrie.findAll(src[i]);
         }
 #else
+        #pragma omp parallel for
         for (int i = 0; i < src.size(); i++) {
             for (int j = i + 1; j < src.size(); j++) {
                 if (isCompatible(src[i], src[j])) {

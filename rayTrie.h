@@ -12,6 +12,7 @@
 #include "doubledescription-alt.h"
 
 #define ROOT                        -1
+// #define DELETE
 
 namespace regina {
 
@@ -69,7 +70,9 @@ class RayTrie {
                 stack.pop_back();
                 if (node->ray != nullptr && node->ray != ray) {
                     ray->neighbours.push_back(node->ray);
+#ifdef DELETE
                     node->ray->neighbours.push_back(ray);
+#endif
                 }
                 for (auto neighbour : node->neighbours) {
                     if (levelToType[neighbour->level] == 0 || levelToType[neighbour->level] == neighbour->type) {
