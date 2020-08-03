@@ -55,7 +55,6 @@ int main(int argc, char *argv[]) {
                 if (!triangulation->intelligentSimplify()) {
                     triangulation->simplifyExhaustive();
                 }
-                cout << "Boundary:" << triangulation->countBoundaryComponents() << endl;
             }
         }
         MatrixInt* subspace = makeMatchingEquations(triangulation, NS_QUAD);

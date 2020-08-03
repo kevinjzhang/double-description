@@ -26,6 +26,7 @@ using namespace std;
 // #define DISPLAYANS
 #define USE_RAYTRIE
 
+#define HYPERPLANE_ANALYSIS
 #define BIT_SIZE                    126
 #define setbits                     std::bitset<128>
 
@@ -52,6 +53,17 @@ void getConnectedComponent(int node, unordered_map<T, bool>& visited, vector<T>&
     }
 }
 #endif
+
+template <typename T>
+void getConnectedComponent2(int node, unordered_map<T, vector<T>>& graph, vector<bool>& visited, vector<T>& nodes, vector<bool>& combinations) {
+    visited[node] = true;
+    nodes.push_back(node);
+    for(auto adj : graph[node]) {
+        if(!visited[adj] && !combinations[adj]) {
+            getConnectedComponent2(adj, graph, visited, nodes, combinations);
+        }
+    }
+}
 
 template <class Number>
 Number gcd(Number a, Number b) {
@@ -224,6 +236,46 @@ void DoubleDescriptionAlt::enumerateExtremalRaysAlt(const MatrixInt& subspace,
     RunOptions options) {
     unsigned long eqns = subspace.rows();
     unsigned long dim = subspace.columns();
+#ifdef HYPERPLANE_ANALYSIS
+    vector<setbits> data(eqns, 0);
+    for (int i = 0; i < eqns; i++) {
+        for (int j = 0; j < dim; j++) {
+            if(subspace.entry(i, j).isZero()) {
+                data[i].set(j);
+            }
+        }
+    }
+    unordered_map<int, vector<int>> graph;
+    for (int i = 0; i < data.size(); i++) {
+        for (int j = i + 1; j < data.size(); j++) {
+            if ((data[i] & data[j]).any()) {
+                graph[i].push_back(j);
+                graph[j].push_back(i);
+            }
+        }    
+    }
+    cout << "Dimension: " << dim << endl;
+    for(int k = 1; k < 6; k++) {
+        vector<bool> combinations(eqns);
+        for(int i = combinations.size() - k - 1; i < combinations.size(); i++) {
+            combinations[i] = true;
+        }
+        do {
+            vector<bool> visited(eqns);
+            vector<vector<int>> components;
+            for(int x = 0; x < data.size(); x++) {
+                if (!combinations[x] && !visited[x]) {
+                    vector<int> component;
+                    getConnectedComponent2(x, graph, visited, component, combinations);
+                }
+            }
+            if (components.size() >= 2) {
+                cout << k << " " << components[0].size() << " " << components[1].size() << endl;
+            }
+        } while(std::next_permutation(combinations.begin(), combinations.end()));
+    }
+    return;
+#endif
     vector<unsigned long> ordering(eqns);
     for(int i = 0; i < eqns; i++) {
         ordering[i] = i;
