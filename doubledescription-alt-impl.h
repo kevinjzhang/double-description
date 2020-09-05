@@ -240,7 +240,7 @@ void DoubleDescriptionAlt::enumerateExtremalRaysAlt(const MatrixInt& subspace,
     vector<setbits> data(eqns, 0);
     for (int i = 0; i < eqns; i++) {
         for (int j = 0; j < dim; j++) {
-            if(subspace.entry(i, j).isZero()) {
+            if(!subspace.entry(i, j).isZero()) {
                 data[i].set(j);
             }
         }

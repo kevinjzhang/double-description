@@ -1,4 +1,7 @@
 #include <vector>
+#include <iostream>
+#include <fstream>
+#include <string>
 #include <type_traits>
 #include <chrono> 
 
@@ -23,10 +26,10 @@ using namespace regina;
 
 
 int main(int argc, char *argv[]) {
-    std::string inFile = string(argv[1]);
-    std::string outFile = string(argv[2]);
-    ifstream in (inFile, std::ifstream::in);
-    ofstream out;
+    std::string inFile = std::string(argv[1]);
+    std::string outFile = std::string(argv[2]);
+    std::ifstream in (inFile, std::ifstream::in);
+    std::ofstream out;
     out.open(outFile);
     int number;
     in >> number;
